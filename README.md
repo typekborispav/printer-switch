@@ -5,8 +5,7 @@
 <h1 align="center">Printer Switch</h1>
 
 <p align="center">
-  <b>Your network printer – and a USB printer whenever you need one.</b><br>
-  A small Windows app that lends a USB printer from a Raspberry Pi / Linux print server to your PC with one click, and gives it back.
+  <b>Turn your USB printer into a network printer – and switch it back, any time, as if it were plugged straight into your PC.</b>
 </p>
 
 <p align="center">
@@ -18,13 +17,15 @@
 
 ---
 
-Many printers show toner levels, run maintenance or update firmware only through the
-manufacturer's Windows software – and that software wants the printer on **USB**.
-If your printer hangs off a Raspberry Pi so the whole household can print, you are stuck.
+Got a printer that only does USB and want the whole household to print on it? Plug it into
+a Raspberry Pi and Printer Switch **turns the Pi into a print server** for you: it installs and
+sets up everything, so the printer is available on the network to every computer and phone.
 
-Printer Switch fixes that. One click and the printer behaves as if it were plugged into
-your PC with a cable; another click and it is back on the network for everyone.
-The cable can stay where it is – it all happens over the network.
+The main part comes after that. A network printer loses what only works over USB: the
+manufacturer's software for toner levels, cleaning, maintenance or firmware updates cannot see
+it over the network. Printer Switch fixes that **with one click: the printer starts behaving,
+for your PC, as if it were plugged into it with a USB cable.** When you are done, one more click
+gives it back to the network. The cable stays at the Raspberry Pi – it all happens over the network.
 
 <p align="center">
   <img src="docs/flyout.png" width="380" alt="Panel above the notification area">

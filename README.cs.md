@@ -5,21 +5,22 @@
 <h1 align="center">Přepínač tiskárny</h1>
 
 <p align="center">
-  <b>Tiskárna v síti – a kdykoli je potřeba, jako přes USB.</b><br>
-  Malá aplikace pro Windows, která jedním kliknutím zapůjčí USB tiskárnu z Raspberry Pi nebo linuxového tiskového serveru do tvého PC a zase ji vrátí.
+  <b>Udělej ze své USB tiskárny síťovou – a kdykoli ji přepni zpátky, jako by byla zapojená přímo do počítače.</b>
 </p>
 
 <p align="center"><a href="README.md">English</a></p>
 
 ---
 
-Spousta tiskáren ukáže stav toneru, údržbu nebo aktualizaci firmwaru jen v softwaru výrobce
-pro Windows – a ten chce tiskárnu na **USB**. Když tiskárna visí na Raspberry Pi, aby mohla
-tisknout celá domácnost, máš smůlu.
+Máš tiskárnu, která umí jen USB, a chceš, aby na ni tiskla celá domácnost? Stačí ji
+připojit k Raspberry Pi – a Přepínač tiskárny ti z něj **udělá tiskový server**: nainstaluje
+a nastaví vše potřebné, takže tiskárna bude v síti pro všechny počítače i telefony.
 
-Přepínač tiskárny to řeší. Jedno kliknutí a tiskárna se chová, jako by byla připojená
-kabelem k tvému PC; druhé kliknutí a je zpátky v síti pro všechny. Kabel zůstane, kde je –
-všechno jde po síti.
+Hlavní věc ale přijde potom. Síťová tiskárna přijde o to, co umí jen přes USB: software
+výrobce pro stav toneru, čištění, údržbu nebo aktualizaci firmwaru tiskárnu po síti nevidí.
+Přepínač tiskárny to vyřeší **jedním kliknutím: tiskárna se pro tvůj počítač začne chovat,
+jako by byla zapojená USB kabelem přímo do něj.** Až skončíš, druhým kliknutím ji vrátíš
+do sítě. Kabel přitom zůstane u Raspberry Pi – všechno jde po síti.
 
 <p align="center">
   <img src="docs/flyout.png" width="380" alt="Panel nad oznamovací oblastí">
