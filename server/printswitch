@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+#
+# printswitch - server side of Printer Switch
+#
+# Lends a USB printer attached to a Linux print server (typically a Raspberry Pi
+# running CUPS) to a Windows PC over USB/IP, and gives it back afterwards.
+#
+# The Windows app installs this file as /usr/local/sbin/printswitch together with
+# a sudoers rule that allows exactly this one command without a password.
+#
+#   printswitch status            machine readable state (no root needed)
+#   printswitch devices           list USB devices, printers flagged (no root)
+#   printswitch install           install usbip and load kernel modules
+#   printswitch share [DEVICE]    stop CUPS and export the printer over USB/IP
+#   printswitch unshare           stop exporting and start CUPS again
+#
+# DEVICE is a bus id (1-1.4), a vendor:product pair (04f9:0583) or empty,
+# in which case the first USB printer is used.
+#
+# Security: USB/IP has neither authentication nor encryption. usbipd is only
+# running while the printer is lent, and a firewall rule drops port 3240 on
+# every interface except loopback. The Windows app reaches it through an SSH
+# tunnel to 127.0.0.1, so nothing beyond SSH has to be reachable.
+#
+set -euo pipefail
+export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
+
+VERSION=1
+# The state file name is kept from the original scripts on purpose: external
+# monitoring may already look at it to tell "lent out" from "CUPS crashed".
+STATE=/run/printserver-usbip.busid
+UNITS_FILE="${STATE}.units"
+LEGACY_CUPS_FILE="${STATE}.cups"
+PORT=3240
+
+say()  { printf '%s\n' "$*"; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+need_root() { [[ $EUID -eq 0 ]] || die "run through sudo"; }
+
+# ---------------------------------------------------------------- devices ---
+
+# One line per USB device that is not a hub:
+#   device<TAB>busid<TAB>vid:pid<TAB>is_printer(0/1)<TAB>description
+list_devices() {
+  local d name vid pid cls man prod printer i
+  for d in /sys/bus/usb/devices/*; do
+    name=${d##*/}
+    [[ $name =~ ^[0-9]+-[0-9.]+$ ]] || continue
+    [[ -r $d/idVendor ]] || continue
+    cls=$(cat "$d/bDeviceClass" 2>/dev/null || echo 00)
+    [[ $cls == 09 ]] && continue
+    vid=$(<"$d/idVendor"); pid=$(<"$d/idProduct")
+    man=$(cat "$d/manufacturer" 2>/dev/null || true)
+    prod=$(cat "$d/product" 2>/dev/null || true)
+    printer=0
+    for i in "$d/$name":*/bInterfaceClass; do
+      [[ -r $i && $(<"$i") == 07 ]] && printer=1
+    done
+    printf 'device\t%s\t%s:%s\t%s\t%s\n' "$name" "$vid" "$pid" "$printer" \
+      "$(printf '%s %s' "$man" "$prod" | sed 's/^ *//;s/ *$//')"
+  done
+}
+
+# Turns DEVICE into a bus id. Prints nothing when no match is found.
+resolve_busid() {
+  local spec=${1:-}
+  if [[ -z $spec ]]; then
+    list_devices | awk -F'\t' '$4 == 1 { print $2; exit }'
+  elif [[ $spec =~ ^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$ ]]; then
+    list_devices | awk -F'\t' -v id="${spec,,}" '$3 == id { print $2; exit }'
+  elif [[ -e /sys/bus/usb/devices/$spec ]]; then
+    printf '%s\n' "$spec"
+  fi
+}
+
+vidpid_of() {
+  local d=/sys/bus/usb/devices/$1
+  [[ -r $d/idVendor ]] && printf '%s:%s\n' "$(<"$d/idVendor")" "$(<"$d/idProduct")"
+}
+
+# ---------------------------------------------------------------- install ---
+
+ensure_usbip() {
+  if ! command -v usbip >/dev/null || ! command -v usbipd >/dev/null; then
+    if command -v apt-get >/dev/null; then
+      say "installing usbip..."
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get install -y -qq usbip >/dev/null 2>&1 ||
+        { apt-get update -qq >/dev/null 2>&1; apt-get install -y -qq usbip >/dev/null; }
+    else
+      die "usbip is missing; install it with your package manager"
+    fi
+  fi
+  modprobe usbip_core 2>/dev/null || true
+  modprobe usbip_host 2>/dev/null || true
+  grep -q '^usbip_host' /proc/modules ||
+    { say "PRINTSWITCH_ERR nomodule" >&2; false; } ||
+    die "kernel module usbip_host could not be loaded (kernel modules missing? a reboot after a kernel update helps)"
+  if ! grep -qs '^usbip_host' /etc/modules-load.d/usbip.conf; then
+    printf 'usbip_core\nusbip_host\n' > /etc/modules-load.d/usbip.conf
+  fi
+}
+
+# --------------------------------------------------------------- firewall ---
+
+firewall_close() {
+  if command -v nft >/dev/null; then
+    nft delete table inet printswitch 2>/dev/null || true
+    nft -f - <<EOF
+table inet printswitch {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    iifname != "lo" tcp dport $PORT drop
+  }
+}
+EOF
+    return
+  fi
+  if command -v iptables >/dev/null; then
+    iptables -C INPUT ! -i lo -p tcp --dport "$PORT" -j DROP 2>/dev/null ||
+      iptables -I INPUT ! -i lo -p tcp --dport "$PORT" -j DROP
+    return
+  fi
+  warn "neither nft nor iptables found; port $PORT is reachable from the network while the printer is lent"
+}
+
+firewall_open() {
+  if command -v nft >/dev/null; then
+    nft delete table inet printswitch 2>/dev/null || true
+  fi
+  if command -v iptables >/dev/null; then
+    while iptables -D INPUT ! -i lo -p tcp --dport "$PORT" -j DROP 2>/dev/null; do :; done
+  fi
+}
+
+# ------------------------------------------------------------------ units ---
+
+# Print the CUPS units that are active right now.
+active_cups_units() {
+  local u
+  for u in cups.path cups.socket cups.service; do
+    systemctl is-active --quiet "$u" 2>/dev/null && printf '%s\n' "$u"
+  done
+  return 0
+}
+
+# ------------------------------------------------------------------ share ---
+
+do_unshare() {
+  local busid="" b
+  [[ -r $STATE ]] && busid=$(<"$STATE")
+
+  if command -v usbip >/dev/null; then
+    if [[ -n $busid ]]; then
+      usbip unbind -b "$busid" >/dev/null 2>&1 || true
+    fi
+    # Anything else still exported (state file lost, older scripts...).
+    for b in $(usbip list -r 127.0.0.1 2>/dev/null | awk '/^ *[0-9]+-[0-9.]+:/ { sub(":", "", $1); print $1 }'); do
+      usbip unbind -b "$b" >/dev/null 2>&1 || true
+    done
+  fi
+  pkill -x usbipd 2>/dev/null || true
+  firewall_open
+  rm -f "$STATE"
+
+  # Start whatever was running before. Older scripts only remembered CUPS.
+  local units=""
+  [[ -r $UNITS_FILE ]] && units=$(<"$UNITS_FILE")
+  [[ -z $units ]] && units="cups.service"
+  # shellcheck disable=SC2086
+  systemctl start $units 2>/dev/null || systemctl start cups.service
+  rm -f "$UNITS_FILE" "$LEGACY_CUPS_FILE"
+
+  # Give CUPS a moment to see the printer again.
+  local i
+  for i in 1 2 3 4 5 6; do
+    systemctl is-active --quiet cups.service && break
+    sleep 1
+  done
+  systemctl is-active --quiet cups.service || die "CUPS did not start"
+  say "PRINTSWITCH_OK"
+}
+
+do_share() {
+  local spec=${1:-} busid vidpid
+  ensure_usbip
+
+  busid=$(resolve_busid "$spec")
+  if [[ -z $busid ]]; then
+    say "USB devices on this server:" >&2
+    list_devices | cut -f2- >&2
+    say "PRINTSWITCH_ERR nodevice" >&2
+    die "printer not found${spec:+ ($spec)} - is it switched on and connected?"
+  fi
+  vidpid=$(vidpid_of "$busid")
+
+  # From here on the printer is being taken away from CUPS; any failure must
+  # give it back, otherwise nobody can print.
+  trap 'rc=$?; if [[ $rc -ne 0 ]]; then warn "sharing failed, giving the printer back to CUPS"; do_unshare >/dev/null 2>&1 || true; fi; exit $rc' EXIT
+
+  if [[ ! -e $UNITS_FILE ]]; then
+    active_cups_units > "$UNITS_FILE"
+  fi
+  local units
+  units=$(<"$UNITS_FILE")
+  if [[ -n $units ]]; then
+    # shellcheck disable=SC2086
+    systemctl stop $units
+  fi
+
+  firewall_close
+
+  if ! pgrep -x usbipd >/dev/null; then
+    usbipd -D
+    sleep 1
+    pgrep -x usbipd >/dev/null || die "usbipd did not start"
+  fi
+
+  if ! usbip list -r 127.0.0.1 2>/dev/null | grep -q "^ *$busid:"; then
+    usbip bind -b "$busid" >/dev/null
+  fi
+  printf '%s\n' "$busid" > "$STATE"
+  trap - EXIT
+  say "PRINTSWITCH_OK busid=$busid vidpid=$vidpid"
+}
+
+do_status() {
+  say "version=$VERSION"
+  say "cups=$(systemctl is-active cups.service 2>/dev/null || true)"
+  if [[ -f $STATE ]]; then
+    say "shared=yes"
+    say "busid=$(cat "$STATE" 2>/dev/null || true)"
+  else
+    say "shared=no"
+  fi
+  if command -v usbip >/dev/null; then say "usbip=yes"; else say "usbip=no"; fi
+  # queue=<name><TAB><device uri>; the app prefers queues with a usb:// device
+  if command -v lpstat >/dev/null; then
+    lpstat -v 2>/dev/null | sed -n 's/^device for \([^:]*\): *\(.*\)$/queue=\1\t\2/p' || true
+  fi
+}
+
+case "${1:-}" in
+  status)   do_status ;;
+  devices)  list_devices ;;
+  version)  say "$VERSION" ;;
+  install)  need_root; ensure_usbip; say "PRINTSWITCH_OK" ;;
+  share)    need_root; do_share "${2:-}" ;;
+  unshare)  need_root; do_unshare ;;
+  *)        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac
