@@ -21,10 +21,13 @@ AppSupportURL={#RepoUrl}
 AppUpdatesURL={#RepoUrl}
 VersionInfoVersion={#AppVersion}
 
-; Per-user install by default: no administrator rights, no UAC prompt.
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+; Installs into Program Files for all users (one UAC prompt). Autostart is not
+; written here: in an elevated installer HKCU may belong to a different (admin)
+; account, so the app's own setup wizard turns it on for the signed-in user.
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=commandline
 DefaultDirName={autopf}\Printer Switch
+UsePreviousAppDir=no
 DisableProgramGroupPage=yes
 DisableReadyPage=no
 
@@ -65,11 +68,6 @@ cs.AppTitle=Přepínač tiskárny
 de.AppTitle=Druckerumschalter
 sk.AppTitle=Prepínač tlačiarne
 pl.AppTitle=Przełącznik drukarki
-en.Autostart=Start when I sign in to Windows
-cs.Autostart=Spouštět po přihlášení do Windows
-de.Autostart=Beim Anmelden bei Windows starten
-sk.Autostart=Spúšťať po prihlásení do Windows
-pl.Autostart=Uruchamiaj po zalogowaniu do Windows
 en.Launch=Start Printer Switch and set up the connection
 cs.Launch=Spustit Přepínač tiskárny a nastavit připojení
 de.Launch=Druckerumschalter starten und Verbindung einrichten
@@ -92,7 +90,6 @@ sk.RemoveData=Zmazať aj nastavenia, záznam a SSH kľúč aplikácie?%n%nAk apl
 pl.RemoveData=Usunąć także ustawienia, dziennik i klucz SSH aplikacji?%n%nJeśli tylko instalujesz ponownie, wybierz Nie.
 
 [Tasks]
-Name: "autostart"; Description: "{cm:Autostart}"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
@@ -112,8 +109,7 @@ Name: "{autoprograms}\{cm:Notices}"; Filename: "{app}\THIRD-PARTY-NOTICES.md"
 Name: "{autodesktop}\{cm:AppTitle}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\PrinterSwitch"; ValueType: string; ValueName: "InstallerLanguage"; ValueData: "{language}"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "PrinterSwitch"; ValueData: """{app}\{#AppExe}"" --background"; Tasks: autostart
+Root: HKA; Subkey: "Software\PrinterSwitch"; ValueType: string; ValueName: "InstallerLanguage"; ValueData: "{language}"; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:Launch}"; Flags: nowait postinstall skipifsilent

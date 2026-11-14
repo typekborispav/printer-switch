@@ -54,7 +54,7 @@ uvnitř SSH.
 od Debianu s tiskárnou na USB · přístup přes SSH (stačí jednou heslo).
 
 1. Stáhni **`PrinterSwitch-Setup-x.y.z.exe`** z [Releases](../../releases/latest) a spusť ho.
-   Instaluje se jen pro tvého uživatele, bez oprávnění správce.
+   Nainstaluje se do Program Files, jednou si řekne o oprávnění správce.
    *Instalátor zatím není digitálně podepsaný, SmartScreen může varovat: Další informace → Přesto spustit.*
 2. Průvodce tě provede kroky **Tiskový server** (najít v síti, přihlásit), **Příprava serveru**
    (*použít stávající tiskový server* nebo *nastavit tiskový server od začátku*),

@@ -42,9 +42,16 @@ public partial class App : Application
         if (!settings.Configured && settings.Language.Length == 0)
         {
             // First start after installation: use the language picked in the installer.
-            using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\PrinterSwitch");
-            if (k?.GetValue("InstallerLanguage") is string lang && L.Codes.Contains(lang))
-                settings.Language = lang;
+            // Program Files install writes it to HKLM; a per-user install to HKCU.
+            foreach (var hive in new[] { Microsoft.Win32.Registry.CurrentUser, Microsoft.Win32.Registry.LocalMachine })
+            {
+                using var k = hive.OpenSubKey(@"Software\PrinterSwitch");
+                if (k?.GetValue("InstallerLanguage") is string lang && L.Codes.Contains(lang))
+                {
+                    settings.Language = lang;
+                    break;
+                }
+            }
         }
         L.Init(settings.Language);
         Log.Write($"--- start {typeof(App).Assembly.GetName().Version} ---");

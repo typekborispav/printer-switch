@@ -73,7 +73,7 @@ loopback, and all traffic runs inside SSH.
 box with the printer on USB · SSH access to it (a password once is enough).
 
 1. Download **`PrinterSwitch-Setup-x.y.z.exe`** from [Releases](../../releases/latest) and run it.
-   It installs for your user only, no administrator rights needed.
+   It installs into Program Files and asks for administrator rights once.
    *The installer is not code-signed yet, so SmartScreen may warn: More info → Run anyway.*
 2. The setup wizard walks you through it:
 
