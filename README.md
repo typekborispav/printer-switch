@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/OWNER/printer-switch?label=download" alt="Download"></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/typekborispav/printer-switch?label=download" alt="Download"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4" alt="Windows 10 | 11">
   <img src="https://img.shields.io/badge/licence-GPL--3.0-blue" alt="GPL-3.0">
   <a href="README.cs.md"><img src="https://img.shields.io/badge/čeština-README-lightgrey" alt="Česky"></a>

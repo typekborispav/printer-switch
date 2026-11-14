@@ -53,7 +53,7 @@ public static class Dialogs
         WinForms.TaskDialog.ShowDialog(page);
     }
 
-    public const string RepoUrl = "https://github.com/OWNER/printer-switch";
+    public const string RepoUrl = "https://github.com/typekborispav/printer-switch";
 
     public static void About()
     {
