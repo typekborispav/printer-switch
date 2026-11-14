@@ -15,6 +15,7 @@ AppName=Printer Switch
 AppVersion={#AppVersion}
 AppVerName=Printer Switch {#AppVersion}
 AppPublisher=Boris Pavelka
+AppCopyright=Copyright (C) 2026 Boris Pavelka, GPL-3.0-or-later
 AppPublisherURL={#RepoUrl}
 AppSupportURL={#RepoUrl}
 AppUpdatesURL={#RepoUrl}
@@ -52,20 +53,43 @@ SolidCompression=yes
 LZMANumBlockThreads=4
 
 [Languages]
-Name: "cs"; MessagesFile: "compiler:Languages\Czech.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "cs"; MessagesFile: "compiler:Languages\Czech.isl"
+Name: "de"; MessagesFile: "compiler:Languages\German.isl"
+Name: "sk"; MessagesFile: "compiler:Languages\Slovak.isl"
+Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 
 [CustomMessages]
-cs.AppTitle=Přepínač tiskárny
 en.AppTitle=Printer Switch
-cs.Autostart=Spouštět po přihlášení do Windows
+cs.AppTitle=Přepínač tiskárny
+de.AppTitle=Druckerumschalter
+sk.AppTitle=Prepínač tlačiarne
+pl.AppTitle=Przełącznik drukarki
 en.Autostart=Start when I sign in to Windows
-cs.Launch=Spustit Přepínač tiskárny a nastavit připojení
+cs.Autostart=Spouštět po přihlášení do Windows
+de.Autostart=Beim Anmelden bei Windows starten
+sk.Autostart=Spúšťať po prihlásení do Windows
+pl.Autostart=Uruchamiaj po zalogowaniu do Windows
 en.Launch=Start Printer Switch and set up the connection
-cs.Setup=Nastavení Přepínače tiskárny
+cs.Launch=Spustit Přepínač tiskárny a nastavit připojení
+de.Launch=Druckerumschalter starten und Verbindung einrichten
+sk.Launch=Spustiť Prepínač tlačiarne a nastaviť pripojenie
+pl.Launch=Uruchom Przełącznik drukarki i skonfiguruj połączenie
 en.Setup=Printer Switch setup
-cs.RemoveData=Smazat i nastavení, záznam a SSH klíč aplikace?%n%nPokud aplikaci jen přeinstalováváš, zvol Ne.
+cs.Setup=Nastavení Přepínače tiskárny
+de.Setup=Druckerumschalter einrichten
+sk.Setup=Nastavenie Prepínača tlačiarne
+pl.Setup=Konfiguracja Przełącznika drukarki
+en.Notices=Licences and third-party components
+cs.Notices=Licence a součásti třetích stran
+de.Notices=Lizenzen und Komponenten Dritter
+sk.Notices=Licencie a súčasti tretích strán
+pl.Notices=Licencje i komponenty firm trzecich
 en.RemoveData=Also delete the settings, the log and the app's SSH key?%n%nIf you are only reinstalling, choose No.
+cs.RemoveData=Smazat i nastavení, záznam a SSH klíč aplikace?%n%nPokud aplikaci jen přeinstalováváš, zvol Ne.
+de.RemoveData=Auch die Einstellungen, das Protokoll und den SSH-Schlüssel der App löschen?%n%nWenn du nur neu installierst, wähle Nein.
+sk.RemoveData=Zmazať aj nastavenia, záznam a SSH kľúč aplikácie?%n%nAk aplikáciu len preinštalovávaš, zvoľ Nie.
+pl.RemoveData=Usunąć także ustawienia, dziennik i klucz SSH aplikacji?%n%nJeśli tylko instalujesz ponownie, wybierz Nie.
 
 [Tasks]
 Name: "autostart"; Description: "{cm:Autostart}"
@@ -73,6 +97,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion
 
 [InstallDelete]
 ; Files of an older version that are no longer shipped.
@@ -81,9 +108,11 @@ Type: filesandordirs; Name: "{app}\*.pdb"
 [Icons]
 Name: "{autoprograms}\{cm:AppTitle}"; Filename: "{app}\{#AppExe}"
 Name: "{autoprograms}\{cm:Setup}"; Filename: "{app}\{#AppExe}"; Parameters: "--setup"
+Name: "{autoprograms}\{cm:Notices}"; Filename: "{app}\THIRD-PARTY-NOTICES.md"
 Name: "{autodesktop}\{cm:AppTitle}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
+Root: HKCU; Subkey: "Software\PrinterSwitch"; ValueType: string; ValueName: "InstallerLanguage"; ValueData: "{language}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "PrinterSwitch"; ValueData: """{app}\{#AppExe}"" --background"; Tasks: autostart
 
 [Run]

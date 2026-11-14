@@ -1,3 +1,6 @@
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Boris Pavelka
+
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;

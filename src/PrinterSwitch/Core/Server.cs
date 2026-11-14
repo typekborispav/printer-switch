@@ -1,3 +1,6 @@
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Boris Pavelka
+
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -25,6 +28,21 @@ public sealed record UsbDevice(string BusId, string VidPid, bool IsPrinter, stri
         => (Description.Length > 0 ? Description : VidPid) + "  (" + VidPid + ", " + BusId + ")";
 }
 
+public sealed record Optimization(string Id, bool Applied, bool Available);
+
+/// <summary>Facts about the server for the setup wizard.</summary>
+public sealed class ServerInfo
+{
+    public string Model { get; init; } = "";
+    public string Os { get; init; } = "";
+    public bool IsRaspberryPi { get; init; }
+    public bool HasApt { get; init; }
+    public bool CupsInstalled { get; init; }
+    public bool JobRunning { get; init; }
+    public List<string> Queues { get; init; } = [];
+    public List<Optimization> Optimizations { get; init; } = [];
+}
+
 public sealed record ShareResult(bool Ok, string BusId, string VidPid, string Output);
 
 /// <summary>
@@ -34,7 +52,7 @@ public sealed record ShareResult(bool Ok, string BusId, string VidPid, string Ou
 /// </summary>
 public sealed partial class Server : IDisposable
 {
-    public const int ScriptVersion = 1;
+    public const int ScriptVersion = 2;
     const string ScriptPath = "/usr/local/sbin/printswitch";
     const string StateFile = "/run/printserver-usbip.busid";
 
@@ -130,7 +148,7 @@ public sealed partial class Server : IDisposable
             string k = line[..i], v = line[(i + 1)..];
             if (k == "queue")
             {
-                var parts = v.Split('	');
+                var parts = v.Split('\t');
                 if (parts[0].Length > 0) queues.Add((parts[0], parts.Length > 1 ? parts[1] : ""));
             }
             else kv[k] = v;
@@ -174,6 +192,96 @@ public sealed partial class Server : IDisposable
                 list.Add(new UsbDevice(f[1], f[2], f[3] == "1", f[4]));
         }
         return list;
+    }
+
+    public ServerInfo GetInfo()
+    {
+        var r = Run("bash -s info", 30, ScriptText());
+        var kv = new Dictionary<string, string>();
+        var queues = new List<string>();
+        var opts = new List<Optimization>();
+        foreach (string raw in r.Output.Split('\n'))
+        {
+            string line = raw.TrimEnd('\r');
+            if (line.StartsWith("opt\t"))
+            {
+                var f = line.Split('\t');
+                if (f.Length >= 4) opts.Add(new Optimization(f[1], f[2] == "1", f[3] == "1"));
+                continue;
+            }
+            int i = line.IndexOf('=');
+            if (i <= 0) continue;
+            string k = line[..i], v = line[(i + 1)..];
+            if (k == "queue") queues.Add(v.Split('\t')[0]);
+            else kv[k] = v.Trim();
+        }
+        return new ServerInfo
+        {
+            Model = kv.GetValueOrDefault("model", ""),
+            Os = kv.GetValueOrDefault("os", ""),
+            IsRaspberryPi = kv.GetValueOrDefault("pi") == "yes",
+            HasApt = kv.GetValueOrDefault("apt") == "yes",
+            CupsInstalled = kv.GetValueOrDefault("cups_installed") == "yes",
+            JobRunning = kv.GetValueOrDefault("job") == "active",
+            Queues = queues,
+            Optimizations = opts
+        };
+    }
+
+    // --------------------------------------------------------------- jobs ---
+
+    /// <summary>
+    /// Runs a long helper command (apt, CUPS setup, optimisations) as a detached
+    /// job on the server and follows its log. Survives dropped connections: the
+    /// job keeps running on the server and polling simply resumes.
+    /// Returns the job's exit code and its whole output.
+    /// </summary>
+    public async Task<(int Code, string Output)> RunJobAsync(string args, Action<string> onLine, CancellationToken ct)
+    {
+        var start = await Task.Run(() => Run("sudo -n " + ScriptPath + " job " + args, 60), ct);
+        if (!start.Ok) return (start.Code, start.All);
+
+        var all = new System.Text.StringBuilder();
+        int seen = 0, failures = 0;
+        var until = DateTime.UtcNow.AddMinutes(60);
+        while (DateTime.UtcNow < until)
+        {
+            await Task.Delay(2000, ct);
+            CommandResult r;
+            try
+            {
+                r = await Task.Run(() => Run($"tail -n +{seen + 1} /var/log/printswitch-job.log", 20), ct);
+                failures = 0;
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // Wi-Fi hiccup or the server is busy; the job itself goes on.
+                if (++failures > 30) return (-1, all + "\n" + Ssh.Describe(e));
+                continue;
+            }
+            foreach (string raw in r.Output.Split('\n'))
+            {
+                if (raw.Length == 0) continue;
+                string line = Log.StripAnsi(raw.TrimEnd('\r'));
+                seen++;
+                all.AppendLine(line);
+                onLine(line);
+                var m = System.Text.RegularExpressions.Regex.Match(line, @"^PRINTSWITCH_JOB_DONE rc=(\d+)");
+                if (m.Success)
+                {
+                    Log.Write("job " + args + ": exit " + m.Groups[1].Value + "\n" + all);
+                    return (int.Parse(m.Groups[1].Value), all.ToString());
+                }
+            }
+        }
+        return (-1, all + "\n(timed out)");
+    }
+
+    public CommandResult Reboot()
+    {
+        var r = Run("sudo -n " + ScriptPath + " reboot", 30);
+        lock (gate) DropConnection();
+        return r;
     }
 
     // ------------------------------------------------------------ prepare ---

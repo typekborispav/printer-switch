@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Boris Pavelka
+#
 #
 # printswitch - server side of Printer Switch
 #
@@ -10,9 +13,15 @@
 #
 #   printswitch status            machine readable state (no root needed)
 #   printswitch devices           list USB devices, printers flagged (no root)
+#   printswitch info              server facts for the setup wizard (no root)
 #   printswitch install           install usbip and load kernel modules
 #   printswitch share [DEVICE]    stop CUPS and export the printer over USB/IP
 #   printswitch unshare           stop exporting and start CUPS again
+#   printswitch setup-printserver set up CUPS, the printer driver and sharing
+#   printswitch optimize ID...    apply Raspberry Pi tweaks (ids: see "info")
+#   printswitch unoptimize ID...  undo them
+#   printswitch job CMD [ARGS]    run a long command detached, log in JOBLOG
+#   printswitch reboot            restart the server (refused while lent)
 #
 # DEVICE is a bus id (1-1.4), a vendor:product pair (04f9:0583) or empty,
 # in which case the first USB printer is used.
@@ -25,13 +34,15 @@
 set -euo pipefail
 export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 
-VERSION=1
+VERSION=2
 # The state file name is kept from the original scripts on purpose: external
 # monitoring may already look at it to tell "lent out" from "CUPS crashed".
 STATE=/run/printserver-usbip.busid
 UNITS_FILE="${STATE}.units"
 LEGACY_CUPS_FILE="${STATE}.cups"
 PORT=3240
+JOBLOG=/var/log/printswitch-job.log
+JOBUNIT=printswitch-job
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -218,7 +229,8 @@ do_share() {
     pgrep -x usbipd >/dev/null || die "usbipd did not start"
   fi
 
-  if ! usbip list -r 127.0.0.1 2>/dev/null | grep -q "^ *$busid:"; then
+  local exported; exported=$(usbip list -r 127.0.0.1 2>/dev/null || true)
+  if ! grep -q "^ *$busid:" <<<"$exported"; then
     usbip bind -b "$busid" >/dev/null
   fi
   printf '%s\n' "$busid" > "$STATE"
@@ -242,12 +254,320 @@ do_status() {
   fi
 }
 
+# ------------------------------------------------------------------- info ---
+
+is_pi() { grep -qa "Raspberry Pi" /proc/device-tree/model 2>/dev/null; }
+
+boot_config() {
+  local f
+  for f in /boot/firmware/config.txt /boot/config.txt; do
+    [[ -f $f ]] && { printf '%s\n' "$f"; return; }
+  done
+}
+
+# Output captured first: with pipefail, "grep -q" closing the pipe early would
+# make the whole test fail through SIGPIPE.
+unit_exists() { local out; out=$(systemctl list-unit-files "$1" 2>/dev/null || true); [[ $out == *"$1"* ]]; }
+
+# One line per optimisation: opt <id> <already in effect 0/1> <can apply here 0/1>
+opt_state() {
+  local id=$1 applied=0 available=1
+  case $id in
+    journal)
+      grep -qsE '^\s*SystemMaxUse=' /etc/systemd/journald.conf /etc/systemd/journald.conf.d/*.conf &&
+        grep -qsE '^\s*Storage=persistent' /etc/systemd/journald.conf /etc/systemd/journald.conf.d/*.conf && applied=1 ;;
+    wifi-powersave)
+      if [[ -d /etc/NetworkManager ]]; then
+        grep -qsE '^\s*wifi.powersave\s*=\s*2' /etc/NetworkManager/conf.d/*.conf /etc/NetworkManager/NetworkManager.conf && applied=1
+      else available=0; fi ;;
+    watchdog)
+      if [[ -e /dev/watchdog ]]; then
+        local v; v=$(systemctl show -p RuntimeWatchdogUSec --value 2>/dev/null || true)
+        [[ -n $v && $v != 0 && $v != infinity ]] && applied=1
+      else available=0; fi ;;
+    services)
+      local u found=0
+      applied=1
+      for u in colord ModemManager bluetooth hciuart triggerhappy; do
+        if unit_exists "$u.service"; then
+          found=1
+          case $(systemctl is-enabled "$u.service" 2>/dev/null || true) in masked|disabled) ;; *) applied=0 ;; esac
+        fi
+      done
+      if [[ -d /etc/cloud ]]; then found=1; [[ -f /etc/cloud/cloud-init.disabled ]] || applied=0; fi
+      [[ $found == 0 ]] && { available=0; applied=0; } ;;
+    audio)
+      local cfg; cfg=$(boot_config)
+      if is_pi && [[ -n $cfg ]]; then grep -qE '^\s*dtparam=audio=off' "$cfg" && applied=1; else available=0; fi ;;
+    updates)
+      if command -v apt-get >/dev/null; then
+        dpkg -s unattended-upgrades >/dev/null 2>&1 &&
+          grep -qsE 'Unattended-Upgrade::Automatic-Reboot\s+"false"' /etc/apt/apt.conf.d/* && applied=1
+      else available=0; fi ;;
+    auto-restart)
+      { unit_exists printswitch-auto-restart.timer || unit_exists auto-restart.timer; } && applied=1 ;;
+  esac
+  printf 'opt\t%s\t%s\t%s\n' "$id" "$applied" "$available"
+}
+
+OPTS="journal wifi-powersave watchdog services audio updates auto-restart"
+
+do_info() {
+  say "version=$VERSION"
+  say "model=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || true)"
+  say "os=$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-}")"
+  say "arch=$(uname -m)"
+  say "pi=$(is_pi && echo yes || echo no)"
+  say "apt=$(command -v apt-get >/dev/null && echo yes || echo no)"
+  say "cups_installed=$(command -v cupsd >/dev/null && echo yes || echo no)"
+  say "cups=$(systemctl is-active cups.service 2>/dev/null || true)"
+  say "usbip=$(command -v usbip >/dev/null && echo yes || echo no)"
+  say "job=$(systemctl is-active "$JOBUNIT" 2>/dev/null || true)"
+  if command -v lpstat >/dev/null; then
+    lpstat -v 2>/dev/null | sed -n 's/^device for \([^:]*\): *\(.*\)$/queue=\1\t\2/p' || true
+  fi
+  local id
+  for id in $OPTS; do opt_state "$id"; done
+}
+
+# ---------------------------------------------------------- print server ---
+
+# Debian package with a CUPS driver for a USB vendor id.
+driver_package() {
+  case $1 in
+    04f9) echo printer-driver-brlaser ;;                       # Brother
+    03f0) echo printer-driver-hpcups ;;                        # HP
+    04b8) echo printer-driver-escpr ;;                         # Epson
+    04e8|0924) echo printer-driver-splix ;;                    # Samsung, Xerox
+    0482|043d|04da|0550) echo printer-driver-postscript-hp ;;  # PostScript printers
+    *) echo printer-driver-gutenprint ;;                       # Canon and the rest
+  esac
+}
+
+do_setup_printserver() {
+  export DEBIAN_FRONTEND=noninteractive
+  local busid vidpid vid
+  busid=$(resolve_busid "${1:-}")
+  if [[ -z $busid ]]; then
+    say "PRINTSWITCH_ERR nodevice" >&2
+    die "printer not found - switch it on and connect it by USB"
+  fi
+  vidpid=$(vidpid_of "$busid"); vid=${vidpid%%:*}
+  say "printer: $busid $vidpid $(list_devices | awk -F'\t' -v b="$busid" '$2 == b { print $5 }')"
+
+  say "== installing CUPS (this can take a while on a small Pi) =="
+  apt-get update -q
+  apt-get install -y -q cups cups-bsd avahi-daemon
+  local pkg; pkg=$(driver_package "$vid")
+  say "== installing driver package $pkg =="
+  apt-get install -y -q "$pkg" || warn "driver package $pkg could not be installed"
+
+  local user=${SUDO_USER:-}
+  if [[ -n $user && $user != root ]]; then usermod -aG lpadmin "$user" || true; fi
+
+  say "== enabling sharing =="
+  systemctl enable --now cups.service avahi-daemon.service
+  cupsctl --share-printers
+  systemctl restart cups.service
+  sleep 3
+
+  say "== adding the printer =="
+  local uri="" i
+  for i in $(seq 1 15); do
+    uri=$(lpinfo -v 2>/dev/null | awk '$2 ~ /^usb:\/\// { print $2; exit }')
+    [[ -n $uri ]] && break
+    sleep 2
+  done
+  [[ -n $uri ]] || die "CUPS does not see a USB printer"
+  say "device: $uri"
+
+  local existing
+  existing=$(lpstat -v 2>/dev/null | awk -v u="$uri" '$NF == u { sub(":", "", $3); print $3; exit }')
+  if [[ -n $existing ]]; then
+    say "already configured as queue $existing"
+    lpadmin -p "$existing" -o printer-is-shared=true
+    say "PRINTSWITCH_QUEUE $existing"
+    say "PRINTSWITCH_OK"
+    return
+  fi
+
+  local mm driver name
+  mm=$(lpinfo -l -v 2>/dev/null | awk -v u="$uri" '
+        $1 == "Device:" { cur = $4 }
+        cur == u && $1 == "make-and-model" { sub(/^[^=]*= */, ""); print; exit }')
+  [[ -z $mm ]] && mm=$(printf '%s' "$uri" | sed 's|usb://||; s|?.*||; s|/| |g; s|%20| |g')
+  say "model: $mm"
+  driver=$(lpinfo --make-and-model "$mm" -m 2>/dev/null | awk '{ print $1; exit }')
+  if [[ -z $driver ]]; then
+    driver=$(lpinfo --make-and-model "${mm%% *}" -m 2>/dev/null | awk '{ print $1; exit }')
+  fi
+  [[ -n $driver ]] || die "no CUPS driver found for \"$mm\"; add the printer by hand at http://$(hostname).local:631"
+  say "driver: $driver"
+
+  name=$(printf '%s' "$mm" | tr -cs 'A-Za-z0-9' '_' | sed 's/^_*//; s/_*$//' | cut -c1-40)
+  [[ -z $name ]] && name=Printer
+  lpadmin -p "$name" -E -v "$uri" -m "$driver" -L "$(hostname)" -o printer-is-shared=true
+  lpoptions -d "$name" >/dev/null
+  cupsenable "$name"
+  cupsaccept "$name"
+  say "PRINTSWITCH_QUEUE $name"
+  say "PRINTSWITCH_OK"
+}
+
+# --------------------------------------------------------------- optimise ---
+
+write_file() { # path content
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" > "$1"
+  say "  wrote $1"
+}
+
+opt_apply() {
+  local id=$1
+  case $id in
+    journal)
+      # Keep the log across restarts (to learn why a Pi froze), but small.
+      write_file /etc/systemd/journald.conf.d/zz-printswitch.conf \
+        $'[Journal]\nStorage=persistent\nSystemMaxUse=64M'
+      mkdir -p /var/log/journal
+      systemctl restart systemd-journald ;;
+    wifi-powersave)
+      # Wi-Fi power saving makes small Pis drop off the network now and then.
+      write_file /etc/NetworkManager/conf.d/printswitch-wifi-powersave.conf \
+        $'[connection]\nwifi.powersave = 2'
+      if command -v iw >/dev/null; then iw dev wlan0 set power_save off 2>/dev/null || true; fi
+      say "  takes full effect after a restart" ;;
+    watchdog)
+      # A frozen Pi restarts itself instead of staying dead.
+      write_file /etc/systemd/system.conf.d/printswitch-watchdog.conf \
+        $'[Manager]\nRuntimeWatchdogSec=1m'
+      systemctl daemon-reexec ;;
+    services)
+      local u
+      for u in colord ModemManager bluetooth hciuart triggerhappy; do
+        if unit_exists "$u.service"; then
+          systemctl disable --now "$u.service" >/dev/null 2>&1 || true
+          if [[ $u == colord ]]; then systemctl mask colord.service >/dev/null 2>&1 || true; fi
+          say "  disabled $u"
+        fi
+      done
+      if [[ -d /etc/cloud ]]; then
+        touch /etc/cloud/cloud-init.disabled
+        say "  disabled cloud-init"
+      fi ;;
+    audio)
+      local cfg; cfg=$(boot_config)
+      [[ -f $cfg.printswitch-backup ]] || cp "$cfg" "$cfg.printswitch-backup"
+      if grep -qE '^\s*dtparam=audio=' "$cfg"; then
+        sed -i 's/^\s*dtparam=audio=.*/dtparam=audio=off/' "$cfg"
+      else
+        printf '\n# printswitch: no sound needed on a print server\ndtparam=audio=off\n' >> "$cfg"
+      fi
+      say "  $cfg: dtparam=audio=off (after a restart)" ;;
+    updates)
+      apt-get install -y -q unattended-upgrades
+      # Security updates every day, but never an unannounced restart.
+      write_file /etc/apt/apt.conf.d/52printswitch-unattended \
+        $'Unattended-Upgrade::Automatic-Reboot "false";\nAPT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";'
+      systemctl enable --now unattended-upgrades.service >/dev/null 2>&1 || true ;;
+    auto-restart)
+      # Restart on Sunday night, but only when an update asks for it, nothing
+      # is printing and the printer is not lent to a PC.
+      write_file /etc/systemd/system/printswitch-auto-restart.service \
+        $'[Unit]\nDescription=Restart if an update needs it and the printer is idle\n\n[Service]\nType=oneshot\nExecStart=/usr/local/sbin/printswitch auto-restart-check'
+      write_file /etc/systemd/system/printswitch-auto-restart.timer \
+        $'[Unit]\nDescription=Weekly restart window for the print server\n\n[Timer]\nOnCalendar=Sun 04:05\n\n[Install]\nWantedBy=timers.target'
+      systemctl daemon-reload
+      systemctl enable --now printswitch-auto-restart.timer ;;
+    *) warn "unknown optimisation: $id"; return 1 ;;
+  esac
+  say "PRINTSWITCH_OPT $id applied"
+}
+
+opt_undo() {
+  local id=$1 u cfg
+  case $id in
+    journal) rm -f /etc/systemd/journald.conf.d/zz-printswitch.conf; systemctl restart systemd-journald ;;
+    wifi-powersave) rm -f /etc/NetworkManager/conf.d/printswitch-wifi-powersave.conf ;;
+    watchdog) rm -f /etc/systemd/system.conf.d/printswitch-watchdog.conf; systemctl daemon-reexec ;;
+    services)
+      systemctl unmask colord.service >/dev/null 2>&1 || true
+      for u in colord ModemManager bluetooth hciuart triggerhappy; do
+        systemctl enable "$u.service" >/dev/null 2>&1 || true
+      done
+      rm -f /etc/cloud/cloud-init.disabled ;;
+    audio)
+      cfg=$(boot_config)
+      sed -i '/^# printswitch: no sound/d; s/^\s*dtparam=audio=off/dtparam=audio=on/' "$cfg" ;;
+    updates) rm -f /etc/apt/apt.conf.d/52printswitch-unattended ;;
+    auto-restart)
+      systemctl disable --now printswitch-auto-restart.timer >/dev/null 2>&1 || true
+      rm -f /etc/systemd/system/printswitch-auto-restart.service /etc/systemd/system/printswitch-auto-restart.timer
+      systemctl daemon-reload ;;
+    *) warn "unknown optimisation: $id"; return 1 ;;
+  esac
+  say "PRINTSWITCH_OPT $id undone"
+}
+
+do_auto_restart_check() {
+  if [[ ! -f /run/reboot-required && ! -f /var/run/reboot-required ]]; then say "no restart needed"; return; fi
+  if [[ -f $STATE ]]; then say "printer is lent to a PC, not restarting"; return; fi
+  if command -v lpstat >/dev/null && [[ -n $(lpstat -o 2>/dev/null) ]]; then
+    say "jobs in the queue, not restarting"; return
+  fi
+  mkdir -p /var/lib/printswitch
+  date -Is > /var/lib/printswitch/auto-restart
+  systemctl reboot
+}
+
+# ------------------------------------------------------------------- jobs ---
+
+# Long work (apt on a Pi Zero takes many minutes) runs as a transient systemd
+# unit, so a dropped SSH connection or a Wi-Fi hiccup does not kill it half
+# way. The app polls the log until the PRINTSWITCH_JOB_DONE line appears.
+do_job() {
+  if systemctl is-active --quiet "$JOBUNIT"; then die "another job is still running (see $JOBLOG)"; fi
+  systemctl reset-failed "$JOBUNIT" >/dev/null 2>&1 || true
+  : > "$JOBLOG"
+  chmod 0644 "$JOBLOG"
+  systemd-run --unit="$JOBUNIT" --collect --quiet --setenv=SUDO_USER="${SUDO_USER:-}" \
+    /usr/local/sbin/printswitch run-job "$@"
+  say "PRINTSWITCH_OK job started"
+}
+
+do_run_job() {
+  exec >>"$JOBLOG" 2>&1
+  local rc=0 id
+  case "${1:-}" in
+    setup-printserver) ( set -e; do_setup_printserver "${2:-}" ) || rc=$? ;;
+    optimize)   shift; for id in "$@"; do ( set -e; opt_apply "$id" ) || rc=$?; done ;;
+    unoptimize) shift; for id in "$@"; do ( set -e; opt_undo "$id" ) || rc=$?; done ;;
+    install)    ( set -e; ensure_usbip; say "PRINTSWITCH_OK" ) || rc=$? ;;
+    *) warn "unknown job: ${1:-}"; rc=2 ;;
+  esac
+  say "PRINTSWITCH_JOB_DONE rc=$rc"
+}
+
+do_reboot() {
+  [[ -f $STATE ]] && die "the printer is lent to a PC; give it back first"
+  say "PRINTSWITCH_OK restarting"
+  systemd-run --on-active=3 --quiet systemctl reboot
+}
+
 case "${1:-}" in
-  status)   do_status ;;
-  devices)  list_devices ;;
-  version)  say "$VERSION" ;;
-  install)  need_root; ensure_usbip; say "PRINTSWITCH_OK" ;;
-  share)    need_root; do_share "${2:-}" ;;
-  unshare)  need_root; do_unshare ;;
-  *)        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  status)     do_status ;;
+  devices)    list_devices ;;
+  info)       do_info ;;
+  version)    say "$VERSION" ;;
+  install)    need_root; ensure_usbip; say "PRINTSWITCH_OK" ;;
+  share)      need_root; do_share "${2:-}" ;;
+  unshare)    need_root; do_unshare ;;
+  setup-printserver) need_root; do_setup_printserver "${2:-}" ;;
+  optimize)   need_root; shift; for id in "$@"; do opt_apply "$id"; done ;;
+  unoptimize) need_root; shift; for id in "$@"; do opt_undo "$id"; done ;;
+  job)        need_root; shift; do_job "$@" ;;
+  run-job)    need_root; shift; do_run_job "$@" ;;
+  auto-restart-check) need_root; do_auto_restart_check ;;
+  reboot)     need_root; do_reboot ;;
+  *)          sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

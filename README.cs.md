@@ -1,112 +1,110 @@
-# Přepínač tiskárny
+<p align="center">
+  <img src="src/PrinterSwitch/Assets/app-256.png" width="96" alt="">
+</p>
 
-**[English](README.md)**
+<h1 align="center">Přepínač tiskárny</h1>
 
-Malá aplikace pro Windows, která na chvíli „přenese“ USB tiskárnu ze síťového
-tiskového serveru (třeba Raspberry Pi s CUPS) do tvého počítače, jako by byla
-připojená kabelem, a jedním kliknutím ji zase vrátí do sítě.
+<p align="center">
+  <b>Tiskárna v síti – a kdykoli je potřeba, jako přes USB.</b><br>
+  Malá aplikace pro Windows, která jedním kliknutím zapůjčí USB tiskárnu z Raspberry Pi nebo linuxového tiskového serveru do tvého PC a zase ji vrátí.
+</p>
 
-K čemu to je? Spousta tiskáren ukáže stav toneru, údržbu nebo aktualizaci
-firmwaru jen v softwaru výrobce pro Windows – a ten chce tiskárnu na USB.
-Přepínač tiskárny udělá ze síťové tiskárny místní USB zařízení na tak dlouho,
-jak potřebuješ.
+<p align="center"><a href="README.md">English</a></p>
+
+---
+
+Spousta tiskáren ukáže stav toneru, údržbu nebo aktualizaci firmwaru jen v softwaru výrobce
+pro Windows – a ten chce tiskárnu na **USB**. Když tiskárna visí na Raspberry Pi, aby mohla
+tisknout celá domácnost, máš smůlu.
+
+Přepínač tiskárny to řeší. Jedno kliknutí a tiskárna se chová, jako by byla připojená
+kabelem k tvému PC; druhé kliknutí a je zpátky v síti pro všechny. Kabel zůstane, kde je –
+všechno jde po síti.
 
 <p align="center">
   <img src="docs/flyout.png" width="380" alt="Panel nad oznamovací oblastí">
 </p>
 
-- **Bydlí v oznamovací oblasti.** Kliknutím na ikonu otevřeš panel se stavem
-  a jedním velkým tlačítkem.
-- **Ví, co se děje.** Zelená – tiskárna je v síti, oranžová – je připojená k tomuto
-  PC, červená – má ji jiný počítač. Ikona se obnovuje sama.
-- **Tiskárnu nikdy nenechá viset.** Když se cokoli pokazí v půlce, tiskárna se hned
-  vrátí CUPS. Při ukončení aplikace s připojenou tiskárnou se nejdřív zeptá.
-- **Průvodce nastavením.** Najde tiskový server v síti, nastaví přihlašování
-  klíčem, připraví server a do PC nainstaluje ovladač USB/IP.
-- **Nativní vzhled Windows 11**, světlý i tmavý režim, čeština a angličtina.
+## Co umí
+
+- **Jedno tlačítko v oznamovací oblasti.** Ikona ukazuje stav – zelená: v síti, oranžová:
+  připojená k tomuto PC, červená: má ji jiný počítač – a obnovuje se sama.
+- **Tiskárnu nikdy nenechá viset.** Když se něco pokazí v půlce, tiskárna se hned vrátí CUPS.
+- **Průvodce nastavením** najde tiskový server v síti, nastaví přihlašování klíčem a do PC
+  nainstaluje ovladač USB/IP.
+- **Z čistého Raspberry Pi udělá tiskový server** – CUPS, ovladač tiskárny, sdílení v síti –
+  nebo nechá stávající server být a nainstaluje jen malý pomocný skript.
+- **Vyladění Raspberry Pi** pro stabilní provoz ve dne v noci; každá položka je volitelná a vratná.
+- **Nativní vzhled Windows 11**, světlý i tmavý režim.
+- **Čeština, English, Deutsch, Slovenčina, Polski** – přepnout jde kdykoli.
 
 ## Jak to funguje
 
-```
- Počítač s Windows                            Tiskový server (Raspberry Pi …)
-┌──────────────────────┐   SSH (port 22)    ┌──────────────────────────────┐
-│ Přepínač tiskárny    │ ═════════════════► │ printswitch share            │
-│   ovladač usbip-win2 │   USB/IP uvnitř    │   zastaví CUPS a nabídne     │
-│   127.0.0.1:3240 ────┼── SSH tunelu ─────►│   tiskárnu přes usbipd       │
-└──────────────────────┘                    └──────────────┬───────────────┘
-                                                           │ USB
-                                                       tiskárna
-```
+Aplikace přes SSH požádá server, aby zastavil CUPS a nabídl tiskárnu přes `usbipd`, otevře
+SSH tunel a zařízení přes něj připojí ovladačem
+[usbip-win2](https://github.com/vadimgrn/usbip-win2). Windows pak vidí USB tiskárnu. Vrácení
+vše provede pozpátku. Protokol USB/IP nemá vlastní přihlašování ani šifrování, proto nikdy nejde
+přímo po síti: server po dobu zapůjčení zahazuje port 3240 všude kromě loopbacku a provoz jde
+uvnitř SSH.
 
-1. Aplikace přes SSH požádá server, aby zastavil CUPS a nabídl tiskárnu přes `usbipd`.
-2. Otevře SSH tunel a zařízení přes něj připojí ovladačem
-   [usbip-win2](https://github.com/vadimgrn/usbip-win2). Windows vidí USB tiskárnu.
-3. Vrácení zařízení odpojí, zavře tunel a znovu spustí CUPS.
+## Jak začít
 
-Protokol USB/IP nemá přihlašování ani šifrování, proto nikdy nejde přímo po síti:
-server po dobu zapůjčení zahazuje port 3240 na všech rozhraních kromě loopbacku
-a veškerý provoz jde uvnitř SSH.
+**Potřebuješ:** Windows 10 (20H1) nebo 11, 64bitové · Raspberry Pi nebo jiný linux odvozený
+od Debianu s tiskárnou na USB · přístup přes SSH (stačí jednou heslo).
 
-## Co je potřeba
-
-- Windows 10 (20H1) nebo Windows 11, 64bitové
-- Linuxový tiskový server s CUPS a tiskárnou na USB – vyzkoušeno na Raspberry Pi OS
-  (Debian 13), jiné systémy odvozené od Debianu by měly fungovat; server potřebuje balík `usbip` (průvodce ho nainstaluje přes apt)
-- Přístup na server přes SSH (jednou jméno a heslo, nebo existující klíč)
-
-## Instalace
-
-1. Stáhni `PrinterSwitch-Setup-x.y.z.exe` z [Releases](../../releases) a spusť ho.
-   Instaluje se jen pro aktuálního uživatele, bez oprávnění správce.
-   *Instalátor zatím není digitálně podepsaný, takže SmartScreen může varovat: Další informace → Přesto spustit.*
-2. Spustí se průvodce nastavením:
-   - **Tiskový server** – najdi ho v síti nebo zadej adresu a přihlas se. Když přihlášení
-     klíčem ještě nefunguje, zadáš jednou heslo a průvodce klíč nastaví (heslo se neukládá).
-   - **Příprava serveru** – nainstaluje pomocný skript a balík usbip, vybereš tiskárnu.
-   - **Tento počítač** – nainstaluje ovladač usbip-win2. Je podepsaný Microsoftem,
-     Secure Boot ani testovací režim se nemění. Po první instalaci ovladače je potřeba
-     jednou restartovat Windows.
+1. Stáhni **`PrinterSwitch-Setup-x.y.z.exe`** z [Releases](../../releases/latest) a spusť ho.
+   Instaluje se jen pro tvého uživatele, bez oprávnění správce.
+   *Instalátor zatím není digitálně podepsaný, SmartScreen může varovat: Další informace → Přesto spustit.*
+2. Průvodce tě provede kroky **Tiskový server** (najít v síti, přihlásit), **Příprava serveru**
+   (*použít stávající tiskový server* nebo *nastavit tiskový server od začátku*),
+   **Raspberry Pi** (volitelné vyladění) a **Tento počítač** (ovladač usbip-win2 – podepsaný
+   Microsoftem, Secure Boot ani testovací režim se nemění; po první instalaci jeden restart).
 3. Klikni na ikonu u hodin a stiskni **Připojit k tomuto PC**.
 
-## Co průvodce změní na serveru
+## Vyladění Raspberry Pi
 
-| Co | Kde |
+Vyzkoušené na Raspberry Pi Zero W, které muselo spolehlivě tisknout ve dne v noci. Nic se
+nepoužije, dokud to nezaškrtneš a nestiskneš *Použít*; co už je nastavené, průvodce pozná
+a nechá být; vše jde vrátit příkazem `sudo printswitch unoptimize <id>`.
+
+| Položka | Co dělá |
 |---|---|
-| Pomocný skript (zdroj: [`server/printswitch`](server/printswitch)) | `/usr/local/sbin/printswitch` |
-| Pravidlo pro sudo, které bez hesla dovolí **jen** tento skript | `/etc/sudoers.d/printswitch` |
-| Balík `usbip` a jeho jaderné moduly | apt, `/etc/modules-load.d/usbip.conf` |
-| Veřejný klíč aplikace (jen když jsi zadal heslo) | `~/.ssh/authorized_keys` |
+| `journal` | uchová systémový záznam i po restartu (max. 64 MB), aby šlo zjistit, proč Pi zamrzlo |
+| `wifi-powersave` | vypne úsporný režim Wi-Fi – nejčastější důvod, proč malé Pi vypadává ze sítě |
+| `watchdog` | hardwarový hlídací pes: zamrzlé Pi se do minuty samo restartuje |
+| `updates` | denní bezpečnostní aktualizace, nikdy s nečekaným restartem |
+| `auto-restart` | okno pro restart v neděli 4:05 – jen když to aktualizace chce, nic se netiskne a tiskárna není zapůjčená |
+| `services` * | vypne Bluetooth, správu barev, správce modemů a cloud-init |
+| `audio` * | vypne zvuk |
 
-Vrácení zpět: `sudo rm /usr/local/sbin/printswitch /etc/sudoers.d/printswitch`.
+\* nabízí se jen tehdy, když potvrdíš, že Pi slouží jen jako tiskový server.
 
-Po dobu zapůjčení existuje na serveru soubor `/run/printserver-usbip.busid`.
-Monitoring podle něj pozná „zapůjčeno schválně“ od „CUPS spadl“.
+## Co přibude na serveru
+
+Pomocný skript `/usr/local/sbin/printswitch` ([zdroj](server/printswitch)), pravidlo pro sudo
+`/etc/sudoers.d/printswitch`, které bez hesla dovolí **jen** tento skript, balík `usbip`
+a případně veřejný klíč aplikace v `~/.ssh/authorized_keys`. Při úplném nastavení navíc CUPS,
+Avahi a ovladač tiskárny; při vyladění malé soubory s `printswitch` v názvu.
+Odebrání: `sudo rm /usr/local/sbin/printswitch /etc/sudoers.d/printswitch`.
 
 ## Když něco nejde
 
 | Problém | Řešení |
 |---|---|
-| „Tiskárna není na serveru vidět“ | Zapni ji, zkontroluj USB kabel. Na serveru `printswitch devices` vypíše, co vidí. |
-| Připojení v PC selže | Po instalaci usbip-win2 restartuj Windows. Ve Správci zařízení musí být *USBip 3.X Emulated Host Controller*. |
+| „Tiskárna není na serveru vidět“ | Zapni ji, zkontroluj kabel. Na serveru `printswitch devices` vypíše, co vidí. |
+| Připojení v PC selže | Po instalaci usbip-win2 restartuj Windows. |
 | Tiskárna zůstala zapůjčená po pádu | V aplikaci **Vrátit do sítě**, nebo na serveru `sudo printswitch unshare`. |
-| Síťový tisk se nevrátil | `sudo systemctl restart cups`; občas pomůže přepojit USB kabel. |
-| Změnil se klíč serveru | Spusť znovu průvodce, ukáže nový otisk a zeptá se. |
+| Z jiné podsítě / VLAN nejde tisknout | Sdílení CUPS povoluje jen místní podsíť; přidej ji přes `Allow` v `/etc/cups/cupsd.conf`. |
 
-Záznam je v `%LOCALAPPDATA%\PrinterSwitch\log.txt` (nabídka ikony → Zobrazit záznam),
-nastavení v `%APPDATA%\PrinterSwitch\settings.json`.
+## Licence a poděkování
 
-## Sestavení ze zdrojů
+Přepínač tiskárny je © 2026 Boris Pavelka a svobodný software pod licencí
+**[GNU GPL v3 nebo novější](LICENSE)**: můžeš ho používat, sdílet i upravovat, a co z něj
+vznikne, musí zůstat otevřené pod stejnou licencí a zachovat uvedení autora.
 
-Potřebuješ [.NET 10 SDK](https://dotnet.microsoft.com/download) a
-[Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`).
+Stojí na práci jiných – všechny součásti a jejich licence jsou v
+**[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)**: .NET, SSH.NET a Bouncy Castle (MIT),
+usbip-win2 (GPL-3.0, stahuje se zvlášť), linuxové USB/IP, CUPS a Inno Setup.
 
-```powershell
-.\build.ps1 -Version 1.0.0      # -> dist\PrinterSwitch-Setup-1.0.0.exe
-```
-
-## Poděkování a licence
-
-- [usbip-win2](https://github.com/vadimgrn/usbip-win2) – ovladač USB/IP pro Windows (GPL-3.0, stahuje se zvlášť, není přibalený)
-- [SSH.NET](https://github.com/sshnet/SSH.NET) (MIT)
-
-Přepínač tiskárny je pod [licencí MIT](LICENSE).
+Raspberry Pi je ochranná známka společnosti Raspberry Pi Ltd. Projekt je nezávislý a nemá
+žádný vztah k Raspberry Pi Ltd, Microsoftu ani výrobcům tiskáren.

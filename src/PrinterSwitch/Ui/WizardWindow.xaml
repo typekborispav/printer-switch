@@ -53,8 +53,14 @@
                 <Grid>
                     <!-- 1 welcome -->
                     <StackPanel x:Name="Page0">
-                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE749;" FontSize="40"
-                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <Grid>
+                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE749;" FontSize="40"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE774;" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox x:Name="WelcomeLanguageBox" MinWidth="160" />
+                            </StackPanel>
+                        </Grid>
                         <TextBlock Style="{StaticResource Subtitle}" FontSize="24" Margin="0,16,0,0" Text="{core:Tr wiz.welcome.h}" />
                         <TextBlock Style="{StaticResource Body}" Margin="0,12,0,0" Text="{core:Tr wiz.welcome.p1}" />
                         <Border Style="{StaticResource Card}">
@@ -161,7 +167,23 @@
                     <!-- 3 prepare -->
                     <StackPanel x:Name="Page2" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource Subtitle}" Text="{core:Tr wiz.prep.h}" />
-                        <TextBlock Style="{StaticResource Body}" Margin="0,8,0,0" Text="{core:Tr wiz.prep.p}" />
+                        <TextBlock x:Name="ServerInfoText" Style="{StaticResource Caption}" FontSize="13" Margin="0,6,0,0" />
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <RadioButton x:Name="ModeExisting" GroupName="Mode" IsChecked="True">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="{core:Tr wiz.mode.existing.t}" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource Caption}" Text="{core:Tr wiz.mode.existing.d}" />
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton x:Name="ModeFull" GroupName="Mode" Margin="0,10,0,0">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="{core:Tr wiz.mode.full.t}" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource Caption}" Text="{core:Tr wiz.mode.full.d}" />
+                                    </StackPanel>
+                                </RadioButton>
+                            </StackPanel>
+                        </Border>
                         <Border Style="{StaticResource Card}">
                             <Grid x:Name="CheckGrid">
                                 <Grid.ColumnDefinitions>
@@ -214,10 +236,45 @@
                                          Margin="16,0,0,0" Visibility="Collapsed" VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock x:Name="PrepareText" Style="{StaticResource Body}" Margin="0,12,0,0" />
+                        <TextBox x:Name="PrepareLog" Margin="0,10,0,0" Height="150" IsReadOnly="True" Visibility="Collapsed"
+                                 FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
                     </StackPanel>
 
-                    <!-- 4 this PC -->
-                    <StackPanel x:Name="Page3" Visibility="Collapsed">
+                    <!-- 4 raspberry pi -->
+                    <StackPanel x:Name="PagePi" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource Subtitle}" Text="{core:Tr wiz.pi.h}" />
+                        <TextBlock x:Name="PiModelText" Style="{StaticResource Caption}" FontSize="13" Margin="0,6,0,0" />
+                        <TextBlock x:Name="PiIntro" Style="{StaticResource Body}" Margin="0,8,0,0" Text="{core:Tr wiz.pi.p}" />
+                        <StackPanel x:Name="PiPanel">
+                            <Border Style="{StaticResource Card}">
+                                <CheckBox x:Name="DedicatedBox">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="{core:Tr wiz.pi.dedicated.t}" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource Caption}" Text="{core:Tr wiz.pi.dedicated.d}" />
+                                    </StackPanel>
+                                </CheckBox>
+                            </Border>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel x:Name="OptList" />
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                                <Button x:Name="ApplyOptsButton" Style="{DynamicResource AccentButtonStyle}" MinWidth="140"
+                                        Content="{core:Tr wiz.pi.apply}" Click="ApplyOpts_Click" />
+                                <Button x:Name="RebootButton" Margin="8,0,0,0" Content="{core:Tr wiz.pi.reboot}"
+                                        Click="Reboot_Click" Visibility="Collapsed" />
+                                <ProgressBar x:Name="OptProgress" IsIndeterminate="True" Width="120"
+                                             Margin="16,0,0,0" Visibility="Collapsed" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="OptText" Style="{StaticResource Body}" Margin="0,12,0,0" />
+                            <TextBox x:Name="OptLog" Margin="0,10,0,0" Height="130" IsReadOnly="True" Visibility="Collapsed"
+                                     FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 5 this PC -->
+                    <StackPanel x:Name="PagePc" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource Subtitle}" Text="{core:Tr wiz.pc.h}" />
                         <TextBlock Style="{StaticResource Body}" Margin="0,8,0,0" Text="{core:Tr wiz.pc.p}" />
                         <Border Style="{StaticResource Card}">
@@ -242,8 +299,8 @@
                         <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" Text="{core:Tr wiz.pc.optional}" />
                     </StackPanel>
 
-                    <!-- 5 done -->
-                    <StackPanel x:Name="Page4" Visibility="Collapsed">
+                    <!-- 6 done -->
+                    <StackPanel x:Name="PageDone" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource Glyph}" Text="&#xE930;" FontSize="40"
                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                         <TextBlock Style="{StaticResource Subtitle}" FontSize="24" Margin="0,16,0,0" Text="{core:Tr wiz.done.h}" />
@@ -256,8 +313,6 @@
                                     <TextBlock Text="{core:Tr wiz.done.language}" VerticalAlignment="Center" Margin="0,0,12,0" />
                                     <ComboBox x:Name="LanguageBox" MinWidth="180" />
                                 </StackPanel>
-                                <TextBlock x:Name="LanguageNote" Style="{StaticResource Caption}" Margin="0,6,0,0"
-                                           Text="{core:Tr wiz.lang.note}" Visibility="Collapsed" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource Card}">

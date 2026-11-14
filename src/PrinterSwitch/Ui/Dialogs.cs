@@ -1,3 +1,6 @@
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Boris Pavelka
+
 using PrinterSwitch.Core;
 using WinForms = System.Windows.Forms;
 
@@ -47,6 +50,27 @@ public static class Dialogs
         var log = new WinForms.TaskDialogButton(L.T("action.log"));
         log.Click += (_, _) => TrayController.OpenLog();
         page.Buttons.Add(log);
+        WinForms.TaskDialog.ShowDialog(page);
+    }
+
+    public const string RepoUrl = "https://github.com/OWNER/printer-switch";
+
+    public static void About()
+    {
+        var v = typeof(Dialogs).Assembly.GetName().Version;
+        var page = Page(L.T("app.name") + " " + v?.ToString(3),
+            L.T("about.text"), WinForms.TaskDialogIcon.Information);
+        var notices = new WinForms.TaskDialogButton(L.T("about.notices"));
+        notices.Click += (_, _) =>
+        {
+            string local = System.IO.Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.md");
+            WindowsSystem.Open(System.IO.File.Exists(local) ? local : RepoUrl + "/blob/main/THIRD-PARTY-NOTICES.md");
+        };
+        var web = new WinForms.TaskDialogButton("GitHub");
+        web.Click += (_, _) => WindowsSystem.Open(RepoUrl);
+        page.Buttons.Add(notices);
+        page.Buttons.Add(web);
+        page.Buttons.Add(WinForms.TaskDialogButton.Close);
         WinForms.TaskDialog.ShowDialog(page);
     }
 

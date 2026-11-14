@@ -1,3 +1,6 @@
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Boris Pavelka
+
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -157,14 +160,29 @@ public sealed class TrayController : IDisposable
             _ = RefreshAsync();
     }
 
-    public void ShowWizard()
+    public void ShowWizard() => OpenWizard(settings.Clone(), -1);
+
+    void OpenWizard(Settings draft, int step)
     {
         flyout?.Hide();
         if (wizard != null) { wizard.Activate(); return; }
-        wizard = new WizardWindow(settings.Clone());
-        wizard.Closed += (_, _) =>
+        wizard = new WizardWindow(draft, step);
+        bool switching = false;
+        wizard.LanguageSwitch += (d, st) =>
         {
-            if (wizard.Result is { } result)
+            // Language changes apply at once: rebuild the windows in the new language.
+            ApplyLanguage(d.Language);
+            switching = true;
+            var old = wizard;
+            wizard = null;
+            OpenWizard(d, st);
+            old?.Close();
+        };
+        var current = wizard;
+        current.Closed += (_, _) =>
+        {
+            if (switching) return;
+            if (current.Result is { } result)
             {
                 settings = result;
                 settings.Save();
@@ -173,6 +191,7 @@ public sealed class TrayController : IDisposable
                 SchedulePromotion();
                 _ = RefreshAsync();
                 wizard = null;
+                ApplyLanguage(settings.Language);
                 ShowFlyout();
             }
             else
@@ -180,8 +199,25 @@ public sealed class TrayController : IDisposable
                 wizard = null;
             }
         };
-        wizard.Show();
-        wizard.Activate();
+        current.Show();
+        current.Activate();
+    }
+
+    public void ApplyLanguage(string code)
+    {
+        if (settings.Language != code)
+        {
+            settings.Language = code;
+            try { settings.Save(); } catch { }
+        }
+        L.Init(code);
+        // The flyout is built with texts of the old language; make a new one.
+        if (flyout != null)
+        {
+            flyout.Close();
+            flyout = null;
+        }
+        UpdateUi();
     }
 
     void ShowMenu()
@@ -203,6 +239,7 @@ public sealed class TrayController : IDisposable
         }
         menu.Items.Add(Item(L.T("action.settings"), IconArt.GlyphSettings, ShowWizard));
         menu.Items.Add(Item(L.T("action.log"), "", OpenLog));
+        menu.Items.Add(Item(L.T("action.about"), "", Dialogs.About));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item(L.T("action.exit"), "", Exit));
 

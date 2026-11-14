@@ -1,4 +1,7 @@
-﻿using System.Windows;
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Boris Pavelka
+
+using System.Windows;
 using PrinterSwitch.Core;
 using PrinterSwitch.Ui;
 
@@ -36,6 +39,13 @@ public partial class App : Application
         }
 
         var settings = Settings.Load();
+        if (!settings.Configured && settings.Language.Length == 0)
+        {
+            // First start after installation: use the language picked in the installer.
+            using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\PrinterSwitch");
+            if (k?.GetValue("InstallerLanguage") is string lang && L.Codes.Contains(lang))
+                settings.Language = lang;
+        }
         L.Init(settings.Language);
         Log.Write($"--- start {typeof(App).Assembly.GetName().Version} ---");
 

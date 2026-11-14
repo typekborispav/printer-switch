@@ -1,3 +1,6 @@
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Boris Pavelka
+
 using Windows.Devices.Enumeration;
 
 namespace PrinterSwitch.Core;
