@@ -108,8 +108,6 @@ Name: "{autoprograms}\{cm:Setup}"; Filename: "{app}\{#AppExe}"; Parameters: "--s
 Name: "{autoprograms}\{cm:Notices}"; Filename: "{app}\THIRD-PARTY-NOTICES.md"
 Name: "{autodesktop}\{cm:AppTitle}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
-[Registry]
-Root: HKA; Subkey: "Software\PrinterSwitch"; ValueType: string; ValueName: "InstallerLanguage"; ValueData: "{language}"; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:Launch}"; Flags: nowait postinstall skipifsilent
