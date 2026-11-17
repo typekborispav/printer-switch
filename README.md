@@ -44,7 +44,7 @@ gives it back to the network. The cable stays at the Raspberry Pi – it all hap
 - **Raspberry Pi tuning** for a stable 24/7 print server, each item optional and reversible.
 - **Settings like Windows 11 Settings** – connection, printer, driver, language, autostart;
   the wizard runs on first start and stays one click away.
-- **Updates itself from GitHub Releases** – checks once a day and installs only an installer
+- **Updates itself from GitHub Releases** – checks after every start and then once a day, and installs only an installer
   signed with the author's release key, which never leaves the author's PC: taking over the
   GitHub account is not enough to push a fake update. Installs silently and starts again.
   Can be turned off.
