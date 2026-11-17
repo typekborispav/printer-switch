@@ -1,5 +1,5 @@
 ﻿// SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Boris Pavelka
+// Copyright (C) 2026 typekborispav
 
 using System.Runtime.InteropServices;
 using System.Windows;

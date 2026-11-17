@@ -28,7 +28,7 @@ for your PC, as if it were plugged into it with a USB cable.** When you are done
 gives it back to the network. The cable stays at the Raspberry Pi – it all happens over the network.
 
 <p align="center">
-  <img src="docs/flyout.png" width="380" alt="Panel above the notification area">
+  <img src="docs/demo.gif" width="400" alt="One click attaches the printer to this PC, one more gives it back to the network">
 </p>
 
 ## Features
@@ -72,6 +72,19 @@ gives it back to the network. The cable stays at the Raspberry Pi – it all hap
 USB/IP has no authentication or encryption of its own, so it never travels over the network
 directly: while the printer is lent, the server drops port 3240 on every interface except
 loopback, and all traffic runs inside SSH.
+
+## Why not just…?
+
+- **…share it with CUPS (or Windows printer sharing)?** That is exactly what Printer Switch
+  sets up, and for printing it is all you need. But the manufacturer's tools (toner, cleaning,
+  firmware), scanning on many multifunction printers and some older drivers want a USB
+  connection – that is the gap the switch fills.
+- **…use VirtualHere, FlexiHub or USB Network Gate?** They share any USB device and are
+  mature, but closed source and paid beyond a basic tier. Printer Switch is free (GPL),
+  does one thing – a printer – and does all the setup for you, including the print server.
+- **…run usbip by hand?** That is what happens underneath. By hand it means SSH, stopping
+  CUPS, `usbip bind`, a tunnel, `usbip attach` – and remembering to undo it all, or nobody
+  else can print. Printer Switch does it in one click and always gives the printer back.
 
 ## Getting started
 
@@ -155,7 +168,7 @@ releases are built, signed and published from the author's PC with
 
 ## Licence and credits
 
-Printer Switch is © 2026 Boris Pavelka and free software under the
+Printer Switch is © 2026 typekborispav and free software under the
 **[GNU General Public License v3.0 or later](LICENSE)**: you may use, share and modify it,
 and anything built from it must stay open under the same licence and keep the credits.
 

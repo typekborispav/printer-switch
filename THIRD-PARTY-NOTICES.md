@@ -1,6 +1,6 @@
 # Third-party notices
 
-Printer Switch is © 2026 Boris Pavelka and licensed under the
+Printer Switch is © 2026 typekborispav and licensed under the
 [GNU General Public License v3.0 or later](LICENSE).
 
 It is built on work by other people. This file lists every third-party component,

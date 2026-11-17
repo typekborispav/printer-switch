@@ -23,7 +23,7 @@ jako by byla zapojená USB kabelem přímo do něj.** Až skončíš, druhým kl
 do sítě. Kabel přitom zůstane u Raspberry Pi – všechno jde po síti.
 
 <p align="center">
-  <img src="docs/flyout.png" width="380" alt="Panel nad oznamovací oblastí">
+  <img src="docs/demo.gif" width="400" alt="Jedním klepnutím se tiskárna připojí k tomuto PC, dalším se vrátí do sítě">
 </p>
 
 ## Co umí
@@ -52,6 +52,18 @@ SSH tunel a zařízení přes něj připojí ovladačem
 vše provede pozpátku. Protokol USB/IP nemá vlastní přihlašování ani šifrování, proto nikdy nejde
 přímo po síti: server po dobu zapůjčení zahazuje port 3240 všude kromě loopbacku a provoz jde
 uvnitř SSH.
+
+## Proč ne prostě…?
+
+- **…sdílet ji přes CUPS (nebo sdílení tiskáren ve Windows)?** Přesně to Přepínač tiskárny
+  nastaví a na tisk to stačí. Jenže nástroje výrobce (toner, čištění, firmware), skenování
+  u mnoha multifunkcí a některé starší ovladače chtějí USB – a tu mezeru přepínač zaplní.
+- **…použít VirtualHere, FlexiHub nebo USB Network Gate?** Sdílejí jakékoli USB zařízení a jsou
+  vyzrálé, ale s uzavřeným kódem a nad základní úrovní placené. Přepínač tiskárny je zdarma
+  (GPL), dělá jednu věc – tiskárnu – a všechno nastaví sám, včetně tiskového serveru.
+- **…pouštět usbip ručně?** Přesně to se děje uvnitř. Ručně to ale znamená SSH, zastavit CUPS,
+  `usbip bind`, tunel, `usbip attach` – a nezapomenout to vrátit, jinak nikdo jiný netiskne.
+  Přepínač to udělá jedním klepnutím a tiskárnu vždycky vrátí.
 
 ## Jak začít
 
@@ -104,7 +116,7 @@ Odebrání: `sudo rm /usr/local/sbin/printswitch /etc/sudoers.d/printswitch`.
 
 ## Licence a poděkování
 
-Přepínač tiskárny je © 2026 Boris Pavelka a svobodný software pod licencí
+Přepínač tiskárny je © 2026 typekborispav a svobodný software pod licencí
 **[GNU GPL v3 nebo novější](LICENSE)**: můžeš ho používat, sdílet i upravovat, a co z něj
 vznikne, musí zůstat otevřené pod stejnou licencí a zachovat uvedení autora.
 

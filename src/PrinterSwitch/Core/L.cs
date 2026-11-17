@@ -1,5 +1,5 @@
 ﻿// SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Boris Pavelka
+// Copyright (C) 2026 typekborispav
 
 using System.Globalization;
 using System.Windows.Markup;
@@ -83,11 +83,11 @@ public static class L
         ["action.about"] = ["About", "O aplikaci", "Über", "O aplikácii", "O programie"],
         ["about.notices"] = ["Licences and components", "Licence a součásti", "Lizenzen und Komponenten", "Licencie a súčasti", "Licencje i komponenty"],
         ["about.text"] = [
-            "© 2026 Boris Pavelka. Free software under the GNU GPL v3 or later: you may use, share and modify it; modified versions must stay free under the same licence.\n\nBuilt with .NET, SSH.NET and Bouncy Castle (MIT); uses the usbip-win2 driver (GPL-3.0). Details in Licences and components.",
-            "© 2026 Boris Pavelka. Svobodný software pod licencí GNU GPL v3 nebo novější: můžeš ho používat, sdílet i upravovat; upravené verze musí zůstat svobodné pod stejnou licencí.\n\nPostaveno na .NET, SSH.NET a Bouncy Castle (MIT); používá ovladač usbip-win2 (GPL-3.0). Podrobnosti v Licence a součásti.",
-            "© 2026 Boris Pavelka. Freie Software unter der GNU GPL v3 oder neuer: Du darfst sie nutzen, weitergeben und ändern; geänderte Versionen müssen unter derselben Lizenz frei bleiben.\n\nGebaut mit .NET, SSH.NET und Bouncy Castle (MIT); nutzt den Treiber usbip-win2 (GPL-3.0). Details unter Lizenzen und Komponenten.",
-            "© 2026 Boris Pavelka. Slobodný softvér pod licenciou GNU GPL v3 alebo novšou: môžeš ho používať, zdieľať aj upravovať; upravené verzie musia zostať slobodné pod rovnakou licenciou.\n\nPostavené na .NET, SSH.NET a Bouncy Castle (MIT); používa ovládač usbip-win2 (GPL-3.0). Podrobnosti v Licencie a súčasti.",
-            "© 2026 Boris Pavelka. Wolne oprogramowanie na licencji GNU GPL v3 lub nowszej: możesz go używać, udostępniać i modyfikować; zmienione wersje muszą pozostać wolne na tej samej licencji.\n\nZbudowane na .NET, SSH.NET i Bouncy Castle (MIT); używa sterownika usbip-win2 (GPL-3.0). Szczegóły w Licencje i komponenty."],
+            "© 2026 typekborispav. Free software under the GNU GPL v3 or later: you may use, share and modify it; modified versions must stay free under the same licence.\n\nBuilt with .NET, SSH.NET and Bouncy Castle (MIT); uses the usbip-win2 driver (GPL-3.0). Details in Licences and components.",
+            "© 2026 typekborispav. Svobodný software pod licencí GNU GPL v3 nebo novější: můžeš ho používat, sdílet i upravovat; upravené verze musí zůstat svobodné pod stejnou licencí.\n\nPostaveno na .NET, SSH.NET a Bouncy Castle (MIT); používá ovladač usbip-win2 (GPL-3.0). Podrobnosti v Licence a součásti.",
+            "© 2026 typekborispav. Freie Software unter der GNU GPL v3 oder neuer: Du darfst sie nutzen, weitergeben und ändern; geänderte Versionen müssen unter derselben Lizenz frei bleiben.\n\nGebaut mit .NET, SSH.NET und Bouncy Castle (MIT); nutzt den Treiber usbip-win2 (GPL-3.0). Details unter Lizenzen und Komponenten.",
+            "© 2026 typekborispav. Slobodný softvér pod licenciou GNU GPL v3 alebo novšou: môžeš ho používať, zdieľať aj upravovať; upravené verzie musia zostať slobodné pod rovnakou licenciou.\n\nPostavené na .NET, SSH.NET a Bouncy Castle (MIT); používa ovládač usbip-win2 (GPL-3.0). Podrobnosti v Licencie a súčasti.",
+            "© 2026 typekborispav. Wolne oprogramowanie na licencji GNU GPL v3 lub nowszej: możesz go używać, udostępniać i modyfikować; zmienione wersje muszą pozostać wolne na tej samej licencji.\n\nZbudowane na .NET, SSH.NET i Bouncy Castle (MIT); używa sterownika usbip-win2 (GPL-3.0). Szczegóły w Licencje i komponenty."],
         ["action.cancel"] = ["Cancel", "Zrušit", "Abbrechen", "Zrušiť", "Anuluj"],
         ["action.yes"] = ["Yes", "Ano", "Ja", "Áno", "Tak"],
         ["action.no"] = ["No", "Ne", "Nein", "Nie", "Nie"],

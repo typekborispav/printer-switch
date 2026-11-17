@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Boris Pavelka
+// Copyright (C) 2026 typekborispav
 
 using System.IO;
 using System.Windows;
@@ -90,7 +90,7 @@ public partial class SettingsWindow : Window
 
         // ---- about
         var v = typeof(SettingsWindow).Assembly.GetName().Version;
-        VersionText.Text = L.F("set.version", v?.ToString(3) ?? "?") + " · © 2026 Boris Pavelka";
+        VersionText.Text = L.F("set.version", v?.ToString(3) ?? "?") + " · © 2026 typekborispav";
 
         AutoUpdateSwitch.IsChecked = S.AutoUpdate;
         AutoUpdateSwitch.Checked += (_, _) => { S.AutoUpdate = true; tray.SaveSettings(); };

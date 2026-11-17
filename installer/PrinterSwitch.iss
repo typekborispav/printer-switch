@@ -2,7 +2,7 @@
 ; Built by build.ps1:  ISCC.exe /DAppVersion=1.0.0 installer\PrinterSwitch.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.1.2"
+  #define AppVersion "1.1.3"
 #endif
 #ifndef RepoUrl
   #define RepoUrl "https://github.com/"
@@ -14,8 +14,8 @@ AppId={{4C786CF4-11D5-4E15-95B4-AF63B27E443A}
 AppName=Printer Switch
 AppVersion={#AppVersion}
 AppVerName=Printer Switch {#AppVersion}
-AppPublisher=Boris Pavelka
-AppCopyright=Copyright (C) 2026 Boris Pavelka, GPL-3.0-or-later
+AppPublisher=typekborispav
+AppCopyright=Copyright (C) 2026 typekborispav, GPL-3.0-or-later
 AppPublisherURL={#RepoUrl}
 AppSupportURL={#RepoUrl}
 AppUpdatesURL={#RepoUrl}

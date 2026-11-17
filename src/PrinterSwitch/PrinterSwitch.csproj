@@ -17,10 +17,10 @@
     <SatelliteResourceLanguages>en;cs</SatelliteResourceLanguages>
     <InvariantGlobalization>false</InvariantGlobalization>
 
-    <Version>1.1.2</Version>
+    <Version>1.1.3</Version>
     <Product>Printer Switch</Product>
     <Description>Lend a network USB printer to this PC over USB/IP and give it back.</Description>
-    <Copyright>Copyright (c) 2026 Boris Pavelka</Copyright>
+    <Copyright>Copyright (c) 2026 typekborispav</Copyright>
 
     <!-- ThemeMode (Fluent) is marked experimental in WPF. -->
     <NoWarn>$(NoWarn);WPF0001;WFO0003</NoWarn>
