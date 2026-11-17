@@ -131,7 +131,7 @@ public partial class SettingsWindow : Window
         PageScroll.ScrollToTop();
         if (CurrentPage == "printer" && !printerLoaded) _ = LoadPrinterAsync();
         if (CurrentPage == "pc") ShowUsbipState();
-        if (CurrentPage == "updates" && tray.LastUpdateCheckAge.TotalMinutes > 10) _ = tray.CheckUpdatesAsync(manual: true);
+        if (CurrentPage == "updates" && (!tray.UpdatesCheckedThisRun || (DateTime.Now - S.LastUpdateCheck).TotalMinutes > 10)) _ = tray.CheckUpdatesAsync(manual: true);
     }
 
     /// <summary>Called by the tray whenever the printer state changes.</summary>
@@ -548,7 +548,7 @@ public partial class SettingsWindow : Window
         if (tray.CheckingUpdates) (c, glyph, title) = (Color.FromRgb(0, 103, 192), "\uE895", L.T("upd.checking"));
         else if (u != null) (c, glyph, title) = (Color.FromRgb(0, 103, 192), "\uE896", L.F("upd.available", u.Version.ToString(3)));
         else if (tray.UpdateError.Length > 0) (c, glyph, title) = (Color.FromRgb(202, 80, 16), "\uE7BA", tray.UpdateError);
-        else if (S.LastUpdateCheck == default) (c, glyph, title) = (Color.FromRgb(110, 110, 110), "\uE895", L.T("upd.notchecked"));
+        else if (!tray.UpdatesCheckedThisRun) (c, glyph, title) = (Color.FromRgb(110, 110, 110), "\uE895", L.T("upd.notchecked"));
         else (c, glyph, title) = (Color.FromRgb(16, 137, 62), "\uE73E", L.T("upd.uptodate"));
         UpdBadge.Background = new SolidColorBrush(c);
         UpdBadgeGlyph.Text = glyph;

@@ -37,7 +37,8 @@ public sealed class TrayController : IDisposable
     /// <summary>Newer release found on GitHub, or null.</summary>
     public UpdateInfo? AvailableUpdate { get; private set; }
     public bool CheckingUpdates { get; private set; }
-    public TimeSpan LastUpdateCheckAge => DateTime.Now - settings.LastUpdateCheck;
+    /// <summary>The result of an earlier run is not kept, so a check counts only once made in this one.</summary>
+    public bool UpdatesCheckedThisRun { get; private set; }
     public string UpdateError { get; private set; } = "";
     readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromSeconds(90) };
     Action? balloonAction;
@@ -84,7 +85,7 @@ public sealed class TrayController : IDisposable
         updateTimer.Tick += async (_, _) =>
         {
             updateTimer.Interval = TimeSpan.FromHours(1);
-            if (settings.AutoUpdate && (DateTime.Now - settings.LastUpdateCheck).TotalHours >= 20)
+            if (settings.AutoUpdate && (!UpdatesCheckedThisRun || (DateTime.Now - settings.LastUpdateCheck).TotalHours >= 20))
                 await CheckUpdatesAsync(manual: false);
         };
         updateTimer.Start();
@@ -101,6 +102,7 @@ public sealed class TrayController : IDisposable
         {
             AvailableUpdate = await Updater.CheckAsync();
             UpdateError = "";
+            UpdatesCheckedThisRun = true;
             settings.LastUpdateCheck = DateTime.Now;
             try { settings.Save(); } catch { }
             Log.Write("update check: " + (AvailableUpdate?.Version.ToString() ?? "up to date"));
