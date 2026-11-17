@@ -42,6 +42,10 @@ gives it back to the network. The cable stays at the Raspberry Pi – it all hap
 - **Turns a fresh Raspberry Pi into a print server** – CUPS, the printer driver and network
   sharing – or leaves your existing server alone and installs only a tiny helper.
 - **Raspberry Pi tuning** for a stable 24/7 print server, each item optional and reversible.
+- **Settings like Windows 11 Settings** – connection, printer, driver, language, autostart;
+  the wizard runs on first start and stays one click away.
+- **Updates itself from GitHub Releases** – checks once a day, verifies the installer's SHA-256
+  against the digest GitHub publishes, installs silently and starts again. Can be turned off.
 - **Native Windows 11 look**, light and dark mode.
 - **English, Čeština, Deutsch, Slovenčina, Polski** – switch at any time.
 

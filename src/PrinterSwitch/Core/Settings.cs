@@ -43,6 +43,14 @@ public sealed class Settings
     /// <summary>Pull the tray icon out from behind the chevron once Windows has registered it.</summary>
     public bool PromoteTrayPending { get; set; }
 
+    /// <summary>Ask GitHub once a day whether a newer release exists.</summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    public DateTime LastUpdateCheck { get; set; }
+
+    /// <summary>Newest version the user was already told about (no repeated balloons).</summary>
+    public string NotifiedUpdate { get; set; } = "";
+
     /// <summary>True once the setup wizard finished at least once.</summary>
     public bool Configured { get; set; }
 

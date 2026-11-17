@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Boris Pavelka
 
 using System.Diagnostics;
+using System.IO;
 using System.Management;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
@@ -124,8 +125,7 @@ public static class WindowsSystem
             foreach (string name in root.GetSubKeyNames())
             {
                 using var k = root.OpenSubKey(name, writable: true);
-                if (k?.GetValue("ExecutablePath") is string p &&
-                    string.Equals(p, ExePath, StringComparison.OrdinalIgnoreCase))
+                if (k?.GetValue("ExecutablePath") is string p && IsThisExe(p))
                 {
                     if (k.GetValue("IsPromoted") == null) k.SetValue("IsPromoted", 1, RegistryValueKind.DWord);
                     return true;
@@ -137,6 +137,66 @@ public static class WindowsSystem
             Log.Write("tray promotion: " + e.Message);
         }
         return false;
+    }
+
+    /// <summary>Is the icon on the taskbar? null = Windows has not registered it yet.</summary>
+    public static bool? TrayIconPromoted()
+    {
+        try
+        {
+            using var k = OpenTrayEntry(false);
+            return k == null ? null : k.GetValue("IsPromoted") is int v && v != 0;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Puts the icon on the taskbar or back behind the chevron. False = not registered yet.</summary>
+    public static bool SetTrayIconPromoted(bool on)
+    {
+        try
+        {
+            using var k = OpenTrayEntry(true);
+            if (k == null) return false;
+            k.SetValue("IsPromoted", on ? 1 : 0, RegistryValueKind.DWord);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Log.Write("tray promotion: " + e.Message);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Windows writes paths under known folders with the folder's GUID instead of the
+    /// folder, e.g. "{6D809377-…}\Printer Switch\PrinterSwitch.exe" for Program Files.
+    /// </summary>
+    static bool IsThisExe(string stored)
+    {
+        string path = stored;
+        if (stored.StartsWith('{') && stored.IndexOf('}') is int end and > 0 &&
+            Guid.TryParse(stored[..(end + 1)], out var folder) &&
+            SHGetKnownFolderPath(folder, 0, IntPtr.Zero, out string? root) == 0 && root != null)
+            path = root + stored[(end + 1)..];
+        return string.Equals(Path.GetFullPath(path), Path.GetFullPath(ExePath), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern int SHGetKnownFolderPath([MarshalAs(UnmanagedType.LPStruct)] Guid id, uint flags, IntPtr token,
+                                           [MarshalAs(UnmanagedType.LPWStr)] out string? path);
+
+    static RegistryKey? OpenTrayEntry(bool writable)
+    {
+        using var root = Registry.CurrentUser.OpenSubKey(@"Control Panel\NotifyIconSettings");
+        if (root == null) return null;
+        foreach (string name in root.GetSubKeyNames())
+        {
+            var k = root.OpenSubKey(name, writable);
+            if (k?.GetValue("ExecutablePath") is string p && IsThisExe(p))
+                return k;
+            k?.Dispose();
+        }
+        return null;
     }
 
     // -------------------------------------------------------------- theme ---

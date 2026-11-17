@@ -68,6 +68,13 @@
 
         <!-- links -->
         <StackPanel Margin="-8,12,-8,0">
+            <Button x:Name="UpdateLink" Style="{StaticResource RowButton}" Click="Update_Click" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE896;" FontSize="14" VerticalAlignment="Center" Margin="0,0,12,0"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                    <TextBlock x:Name="UpdateLinkText" VerticalAlignment="Center" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                </StackPanel>
+            </Button>
             <Button x:Name="CupsLink" Style="{StaticResource RowButton}" Click="Cups_Click">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE774;" FontSize="14" VerticalAlignment="Center" Margin="0,0,12,0" />

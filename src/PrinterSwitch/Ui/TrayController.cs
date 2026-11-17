@@ -24,11 +24,23 @@ public sealed class TrayController : IDisposable
     readonly Switcher switcher;
     FlyoutWindow? flyout;
     WizardWindow? wizard;
+    SettingsWindow? settingsWindow;
+    string settingsPage = "general";
+    bool returnToSettings;
     PrinterState lastState = PrinterState.Unknown;
     DateTime flyoutHiddenAt;
     bool exiting;
 
     public Switcher Switcher => switcher;
+    public Settings Settings => settings;
+
+    /// <summary>Newer release found on GitHub, or null.</summary>
+    public UpdateInfo? AvailableUpdate { get; private set; }
+    public bool CheckingUpdates { get; private set; }
+    public TimeSpan LastUpdateCheckAge => DateTime.Now - settings.LastUpdateCheck;
+    public string UpdateError { get; private set; } = "";
+    readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromSeconds(90) };
+    Action? balloonAction;
     public DateTime LastCheck { get; private set; }
 
     public TrayController(Settings s)
@@ -53,7 +65,7 @@ public sealed class TrayController : IDisposable
             if (e.Button == WinForms.MouseButtons.Left) ToggleFlyout();
             else if (e.Button == WinForms.MouseButtons.Right) ShowMenu();
         };
-        icon.BalloonTipClicked += (_, _) => ShowFlyout();
+        icon.BalloonTipClicked += (_, _) => (balloonAction ?? ShowFlyout)();
 
         spinTimer.Tick += (_, _) =>
         {
@@ -67,6 +79,83 @@ public sealed class TrayController : IDisposable
 
         _ = RefreshAsync();
         SchedulePromotion();
+
+        // First look shortly after start, then hourly; GitHub is asked at most once a day.
+        updateTimer.Tick += async (_, _) =>
+        {
+            updateTimer.Interval = TimeSpan.FromHours(1);
+            if (settings.AutoUpdate && (DateTime.Now - settings.LastUpdateCheck).TotalHours >= 20)
+                await CheckUpdatesAsync(manual: false);
+        };
+        updateTimer.Start();
+    }
+
+    // ---------------------------------------------------------- updates ---
+
+    public async Task CheckUpdatesAsync(bool manual)
+    {
+        if (CheckingUpdates) return;
+        CheckingUpdates = true;
+        settingsWindow?.RefreshUpdates();
+        try
+        {
+            AvailableUpdate = await Updater.CheckAsync();
+            UpdateError = "";
+            settings.LastUpdateCheck = DateTime.Now;
+            try { settings.Save(); } catch { }
+            Log.Write("update check: " + (AvailableUpdate?.Version.ToString() ?? "up to date"));
+        }
+        catch (Exception e)
+        {
+            UpdateError = L.T("upd.checkfailed");
+            Log.Write("update check failed: " + e.Message);
+        }
+        finally
+        {
+            CheckingUpdates = false;
+        }
+        if (AvailableUpdate is { } u && !manual && settings.NotifiedUpdate != u.Version.ToString())
+        {
+            settings.NotifiedUpdate = u.Version.ToString();
+            try { settings.Save(); } catch { }
+            Notify(L.F("upd.notify", u.Version.ToString(3)), WinForms.ToolTipIcon.Info, () => ShowSettings("updates"));
+        }
+        UpdateUi();
+        settingsWindow?.RefreshUpdates();
+    }
+
+    /// <summary>Downloads, verifies and starts the installer, then quits. Returns an error text or null.</summary>
+    public async Task<string?> InstallUpdateAsync(IProgress<double> progress)
+    {
+        if (AvailableUpdate is not { } u) return null;
+        if (!Updater.CanInstall(u)) return L.T("upd.manual");
+        if (switcher.Busy) return switcher.BusyText;
+        if (switcher.State == PrinterState.UsbHere)
+        {
+            if (!Dialogs.Confirm(L.T("upd.install"), L.T("upd.lent"), L.T("action.return"))) return "";
+            var r = await switcher.ReturnToNetworkAsync();
+            if (!r.Ok) return r.Message;
+        }
+        string path;
+        try { path = await Updater.DownloadAsync(u, progress); }
+        catch (Exception e)
+        {
+            Log.Write("update download failed: " + e);
+            return L.F("upd.failed", e is System.IO.InvalidDataException ? e.Message : Ssh.Describe(e));
+        }
+
+        // The installer refuses to run while this instance holds its mutex.
+        var app = (App)Application.Current;
+        app.ReleaseInstance();
+        if (!Updater.RunInstaller(path))
+        {
+            app.ReclaimInstance();
+            return L.T("upd.declined");
+        }
+        Log.Write("update installer started; exiting");
+        exiting = true;
+        Application.Current.Shutdown();
+        return null;
     }
 
     public async Task RefreshAsync()
@@ -117,6 +206,7 @@ public sealed class TrayController : IDisposable
         }
 
         flyout?.Refresh();
+        settingsWindow?.RefreshStatus();
     }
 
     public static string StateTitle(PrinterState s) => L.T("state." + s.ToString().ToLowerInvariant() + ".t");
@@ -124,8 +214,9 @@ public sealed class TrayController : IDisposable
     public string StateDetail(PrinterState s)
         => s == PrinterState.Unreachable ? switcher.Detail : L.T("state." + s.ToString().ToLowerInvariant() + ".d");
 
-    public void Notify(string text, WinForms.ToolTipIcon kind = WinForms.ToolTipIcon.Info)
+    public void Notify(string text, WinForms.ToolTipIcon kind = WinForms.ToolTipIcon.Info, Action? onClick = null)
     {
+        balloonAction = onClick;
         icon.BalloonTipTitle = L.T("app.name");
         icon.BalloonTipText = text;
         icon.BalloonTipIcon = kind;
@@ -160,12 +251,63 @@ public sealed class TrayController : IDisposable
             _ = RefreshAsync();
     }
 
-    public void ShowWizard() => OpenWizard(settings.Clone(), -1);
+    /// <param name="step">-1 = welcome page on first run, server page otherwise.</param>
+    public void ShowWizard(int step = -1) => OpenWizard(settings.Clone(), step);
+
+    public void ShowSettings(string? page = null)
+    {
+        flyout?.Hide();
+        if (wizard != null) { wizard.Activate(); return; }
+        if (settingsWindow != null)
+        {
+            if (page != null) settingsWindow.Select(page);
+            if (settingsWindow.WindowState == WindowState.Minimized) settingsWindow.WindowState = WindowState.Normal;
+            settingsWindow.Activate();
+            return;
+        }
+        var w = new SettingsWindow(this, page ?? settingsPage);
+        settingsWindow = w;
+        w.Closed += (_, _) =>
+        {
+            settingsPage = w.CurrentPage;
+            if (settingsWindow == w) settingsWindow = null;
+        };
+        w.Show();
+        w.Activate();
+    }
+
+    /// <summary>Saves settings changed in place (not the connection) and applies them.</summary>
+    public void SaveSettings()
+    {
+        try { settings.Save(); }
+        catch (Exception e) { Log.Write("settings could not be saved: " + e.Message); }
+        refreshTimer.Interval = TimeSpan.FromSeconds(Math.Max(15, settings.RefreshSeconds));
+        UpdateUi();
+    }
+
+    /// <summary>Replaces the settings with ones that change how the server is reached.</summary>
+    public void ApplyConnection(Settings s)
+    {
+        settings = s;
+        switcher.Reconfigure(settings);
+        SaveSettings();
+        SchedulePromotion();
+        _ = RefreshAsync();
+    }
 
     void OpenWizard(Settings draft, int step)
     {
         flyout?.Hide();
         if (wizard != null) { wizard.Activate(); return; }
+        // Settings and the wizard edit the same things: one at a time.
+        if (settingsWindow != null)
+        {
+            var w = settingsWindow;
+            settingsPage = w.CurrentPage;
+            settingsWindow = null;
+            returnToSettings = true;
+            w.Close();
+        }
         wizard = new WizardWindow(draft, step);
         bool switching = false;
         wizard.LanguageSwitch += (d, st) =>
@@ -182,21 +324,20 @@ public sealed class TrayController : IDisposable
         current.Closed += (_, _) =>
         {
             if (switching) return;
+            bool back = returnToSettings;
+            returnToSettings = false;
             if (current.Result is { } result)
             {
-                settings = result;
-                settings.Save();
-                switcher.Reconfigure(settings);
-                refreshTimer.Interval = TimeSpan.FromSeconds(Math.Max(15, settings.RefreshSeconds));
-                SchedulePromotion();
-                _ = RefreshAsync();
+                ApplyConnection(result);
                 wizard = null;
                 ApplyLanguage(settings.Language);
-                ShowFlyout();
+                if (back) ShowSettings(settingsPage);
+                else ShowFlyout();
             }
             else
             {
                 wizard = null;
+                if (back) ShowSettings(settingsPage);
             }
         };
         current.Show();
@@ -216,6 +357,17 @@ public sealed class TrayController : IDisposable
         {
             flyout.Close();
             flyout = null;
+        }
+        // Same for the settings window: reopen it in place.
+        if (settingsWindow is { } old)
+        {
+            settingsWindow = null;
+            ShowSettings(old.CurrentPage);
+            if (settingsWindow is { } now && old.WindowState == WindowState.Normal)
+            {
+                now.Left = old.Left; now.Top = old.Top; now.Width = old.Width; now.Height = old.Height;
+            }
+            old.Close();
         }
         UpdateUi();
     }
@@ -237,9 +389,9 @@ public sealed class TrayController : IDisposable
             menu.Items.Add(Item(L.T("action.cups"), "", OpenCups));
             menu.Items.Add(Item(L.T("action.addprinter"), "", async () => await AddNetworkPrinterAsync(null), !switcher.Busy));
         }
-        menu.Items.Add(Item(L.T("action.settings"), IconArt.GlyphSettings, ShowWizard));
+        menu.Items.Add(Item(L.T("action.settings"), IconArt.GlyphSettings, () => ShowSettings()));
         menu.Items.Add(Item(L.T("action.log"), "", OpenLog));
-        menu.Items.Add(Item(L.T("action.about"), "", Dialogs.About));
+        menu.Items.Add(Item(L.T("action.about"), "", () => ShowSettings("about")));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item(L.T("action.exit"), "", Exit));
 
@@ -357,6 +509,7 @@ public sealed class TrayController : IDisposable
     {
         refreshTimer.Stop();
         spinTimer.Stop();
+        updateTimer.Stop();
         icon.Visible = false;
         icon.Dispose();
         switcher.Dispose();

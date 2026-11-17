@@ -101,6 +101,9 @@ public partial class FlyoutWindow : Window
                 MainButton.Visibility = Visibility.Collapsed; break;
         }
 
+        UpdateLink.Visibility = tray.AvailableUpdate != null ? Visibility.Visible : Visibility.Collapsed;
+        if (tray.AvailableUpdate is { } u) UpdateLinkText.Text = L.F("upd.flyout", u.Version.ToString(3));
+
         bool hasServer = s.Host.Length > 0;
         CupsLink.Visibility = PrinterLink.Visibility = hasServer ? Visibility.Visible : Visibility.Collapsed;
         RefreshButton.IsEnabled = !sw.Busy && st != PrinterState.NotConfigured;
@@ -125,7 +128,8 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    void Settings_Click(object sender, RoutedEventArgs e) => tray.ShowWizard();
+    void Settings_Click(object sender, RoutedEventArgs e) { HideFlyout(); tray.ShowSettings(); }
+    void Update_Click(object sender, RoutedEventArgs e) { HideFlyout(); tray.ShowSettings("updates"); }
     void Cups_Click(object sender, RoutedEventArgs e) { HideFlyout(); tray.OpenCups(); }
     async void Printer_Click(object sender, RoutedEventArgs e) { HideFlyout(); await tray.AddNetworkPrinterAsync(null); }
     void Log_Click(object sender, RoutedEventArgs e) { HideFlyout(); TrayController.OpenLog(); }

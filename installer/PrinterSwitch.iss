@@ -2,7 +2,7 @@
 ; Built by build.ps1:  ISCC.exe /DAppVersion=1.0.0 installer\PrinterSwitch.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.1.0"
 #endif
 #ifndef RepoUrl
   #define RepoUrl "https://github.com/"
@@ -111,6 +111,9 @@ Name: "{autodesktop}\{cm:AppTitle}"; Filename: "{app}\{#AppExe}"; Tasks: desktop
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:Launch}"; Flags: nowait postinstall skipifsilent
+; Silent install started by the app's own updater: start the new version again,
+; as the signed-in user rather than the elevated installer.
+Filename: "{app}\{#AppExe}"; Parameters: "--updated"; Flags: nowait runasoriginaluser skipifnotsilent
 
 [Code]
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

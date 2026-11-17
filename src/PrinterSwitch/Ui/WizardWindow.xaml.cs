@@ -68,6 +68,9 @@ public partial class WizardWindow : Window
         DedicatedBox.Checked += (_, _) => UpdateOptBoxes();
         DedicatedBox.Unchecked += (_, _) => UpdateOptBoxes();
 
+        // Opened from Settings straight at the server pages: that connection already works.
+        if (startStep >= 2 && s.HasServer) connected = true;
+
         // Reopened from the tray: skip the welcome page.
         Show(startStep >= 0 ? startStep : s.Configured ? 1 : 0);
     }
@@ -256,7 +259,7 @@ public partial class WizardWindow : Window
     }
 
     /// <summary>Tries each key; stops on the first network-level error.</summary>
-    static (string? key, string fp, Exception? error) TryKeys(string host, int port, string user, List<string> keys, string trusted)
+    internal static (string? key, string fp, Exception? error) TryKeys(string host, int port, string user, List<string> keys, string trusted)
     {
         Exception? last = null;
         foreach (string k in keys)

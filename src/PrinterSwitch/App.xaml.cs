@@ -28,6 +28,9 @@ public partial class App : Application
 
         bool background = e.Args.Contains("--background");
         bool setup = e.Args.Contains("--setup");
+        bool openSettings = e.Args.Contains("--settings");
+        // Started again by the installer of an update.
+        bool updated = e.Args.Contains("--updated");
 
         mutex = new Mutex(true, MutexName, out bool first);
         if (!first)
@@ -60,11 +63,25 @@ public partial class App : Application
         }) { IsBackground = true };
         t.Start();
 
-        if (setup || !settings.Configured)
+        if (updated)
+            tray.Notify(L.F("upd.done", Updater.Current.ToString(3)));
+        else if (setup || !settings.Configured)
             tray.ShowWizard();
+        else if (openSettings)
+            tray.ShowSettings();
         else if (!background)
             tray.ShowFlyout();
     }
+
+    /// <summary>Lets an update installer run: it waits for this mutex to be gone.</summary>
+    public void ReleaseInstance()
+    {
+        try { mutex?.ReleaseMutex(); } catch { }
+        mutex?.Dispose();
+        mutex = null;
+    }
+
+    public void ReclaimInstance() => mutex ??= new Mutex(true, MutexName, out _);
 
     protected override void OnExit(ExitEventArgs e)
     {

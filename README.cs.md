@@ -36,6 +36,10 @@ do sítě. Kabel přitom zůstane u Raspberry Pi – všechno jde po síti.
 - **Z čistého Raspberry Pi udělá tiskový server** – CUPS, ovladač tiskárny, sdílení v síti –
   nebo nechá stávající server být a nainstaluje jen malý pomocný skript.
 - **Vyladění Raspberry Pi** pro stabilní provoz ve dne v noci; každá položka je volitelná a vratná.
+- **Nastavení jako ve Windows 11** – připojení, tiskárna, ovladač, jazyk, spouštění;
+  průvodce se spustí při prvním startu a pak je o jedno kliknutí dál.
+- **Sama se aktualizuje z GitHub Releases** – jednou denně zkontroluje novou verzi, ověří SHA-256
+  instalátoru proti otisku, který GitHub zveřejňuje, nainstaluje ji potichu a znovu se spustí. Jde vypnout.
 - **Nativní vzhled Windows 11**, světlý i tmavý režim.
 - **Čeština, English, Deutsch, Slovenčina, Polski** – přepnout jde kdykoli.
 
