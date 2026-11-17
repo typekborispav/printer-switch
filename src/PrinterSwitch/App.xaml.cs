@@ -64,7 +64,9 @@ public partial class App : Application
         }) { IsBackground = true };
         t.Start();
 
-        if (updated)
+        // A silent install (winget, a script) also starts us with --updated: a first
+        // install still needs the wizard, not an "updated" note.
+        if (updated && settings.Configured)
             tray.Notify(L.F("upd.done", Updater.Current.ToString(3)));
         else if (setup || !settings.Configured)
             tray.ShowWizard();
