@@ -52,6 +52,8 @@ public sealed record ShareResult(bool Ok, string BusId, string VidPid, string Ou
 /// </summary>
 public sealed partial class Server : IDisposable
 {
+    /// <summary>Oldest helper version the app works with. The bundled script may be newer
+    /// (v3 only tightens input checks); raising this makes users re-run "Prepare" with sudo.</summary>
     public const int ScriptVersion = 2;
     const string ScriptPath = "/usr/local/sbin/printswitch";
     const string StateFile = "/run/printserver-usbip.busid";

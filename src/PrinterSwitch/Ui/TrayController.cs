@@ -138,8 +138,8 @@ public sealed class TrayController : IDisposable
             var r = await switcher.ReturnToNetworkAsync();
             if (!r.Ok) return r.Message;
         }
-        string path;
-        try { path = await Updater.DownloadAsync(u, progress); }
+        VerifiedInstaller installer;
+        try { installer = await Updater.DownloadAsync(u, progress); }
         catch (Exception e)
         {
             Log.Write("update download failed: " + e);
@@ -149,7 +149,9 @@ public sealed class TrayController : IDisposable
         // The installer refuses to run while this instance holds its mutex.
         var app = (App)Application.Current;
         app.ReleaseInstance();
-        if (!Updater.RunInstaller(path))
+        bool started;
+        using (installer) started = Updater.RunInstaller(installer);
+        if (!started)
         {
             app.ReclaimInstance();
             return L.T("upd.declined");

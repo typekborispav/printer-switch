@@ -53,6 +53,7 @@ public partial class App : Application
             ev.Handled = true;
         };
 
+        Ssh.ProtectOwnKey();
         tray = new TrayController(settings);
 
         showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);

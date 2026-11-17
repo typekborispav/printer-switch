@@ -44,8 +44,10 @@ gives it back to the network. The cable stays at the Raspberry Pi – it all hap
 - **Raspberry Pi tuning** for a stable 24/7 print server, each item optional and reversible.
 - **Settings like Windows 11 Settings** – connection, printer, driver, language, autostart;
   the wizard runs on first start and stays one click away.
-- **Updates itself from GitHub Releases** – checks once a day, verifies the installer's SHA-256
-  against the digest GitHub publishes, installs silently and starts again. Can be turned off.
+- **Updates itself from GitHub Releases** – checks once a day and installs only an installer
+  signed with the author's release key, which never leaves the author's PC: taking over the
+  GitHub account is not enough to push a fake update. Installs silently and starts again.
+  Can be turned off.
 - **Native Windows 11 look**, light and dark mode.
 - **English, Čeština, Deutsch, Slovenčina, Polski** – switch at any time.
 
@@ -146,8 +148,9 @@ settings: `%APPDATA%\PrinterSwitch\settings.json` · long server jobs: `/var/log
 ```
 
 C# / WPF with the built-in Fluent theme; SSH runs in-process through SSH.NET, so neither
-`ssh.exe` nor PowerShell is needed. Pushing a `v*` tag builds the installer on GitHub Actions
-and attaches it to a release. Translations live in
+`ssh.exe` nor PowerShell is needed. GitHub Actions only checks that every push builds;
+releases are built, signed and published from the author's PC with
+`tools\release.ps1 -Version x.y.z` (key: `tools\release-key.ps1`). Translations live in
 [`src/PrinterSwitch/Core/L.cs`](src/PrinterSwitch/Core/L.cs) – new languages are welcome.
 
 ## Licence and credits

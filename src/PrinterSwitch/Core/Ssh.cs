@@ -67,7 +67,51 @@ public static class Ssh
         => Connect(s.Host, s.Port, s.User, KeyAuth(s.User, s.KeyPath), s.HostKeyFingerprint, out _);
 
     public static AuthenticationMethod KeyAuth(string user, string keyPath)
-        => new PrivateKeyAuthenticationMethod(user, new PrivateKeyFile(keyPath));
+        => new PrivateKeyAuthenticationMethod(user, LoadKey(keyPath));
+
+    // The app's own key is stored encrypted with DPAPI: a copy of the file is useless
+    // on another PC or under another Windows account. Keys the user picked from
+    // ~/.ssh are left as they are.
+    static readonly byte[] ProtectedMagic = "PRINTER-SWITCH-DPAPI-1\n"u8.ToArray();
+    static readonly byte[] KeyEntropy = "printer-switch ssh key"u8.ToArray();
+
+    static string OwnKeyPath => Path.Combine(KeyFolder, "id_rsa_printerswitch");
+
+    /// <summary>The private key file's content in plain text (PEM), decrypted if needed.</summary>
+    static byte[] ReadKey(string path)
+    {
+        byte[] data = File.ReadAllBytes(path);
+        if (!data.AsSpan().StartsWith(ProtectedMagic)) return data;
+        return ProtectedData.Unprotect(data[ProtectedMagic.Length..], KeyEntropy, DataProtectionScope.CurrentUser);
+    }
+
+    static void WriteProtectedKey(string path, byte[] pem)
+    {
+        byte[] blob = ProtectedData.Protect(pem, KeyEntropy, DataProtectionScope.CurrentUser);
+        string tmp = path + ".new";
+        File.WriteAllBytes(tmp, [.. ProtectedMagic, .. blob]);
+        File.Move(tmp, path, overwrite: true);
+    }
+
+    public static PrivateKeyFile LoadKey(string path) => new(new MemoryStream(ReadKey(path)));
+
+    /// <summary>Encrypts the app's own key if an older version left it in plain text.</summary>
+    public static void ProtectOwnKey()
+    {
+        try
+        {
+            string path = OwnKeyPath;
+            if (!File.Exists(path)) return;
+            byte[] data = File.ReadAllBytes(path);
+            if (data.AsSpan().StartsWith(ProtectedMagic)) return;
+            WriteProtectedKey(path, data);
+            Log.Write("own SSH key is now stored encrypted (DPAPI)");
+        }
+        catch (Exception e)
+        {
+            Log.Write("protecting the own SSH key failed: " + e.Message);
+        }
+    }
 
     public static CommandResult Run(SshClient client, string command, TimeSpan timeout, string? stdin = null)
     {
@@ -113,7 +157,7 @@ public static class Ssh
     /// <summary>Unencrypted private keys that could be used, the app's own first.</summary>
     public static IEnumerable<string> CandidateKeys()
     {
-        string own = Path.Combine(KeyFolder, "id_rsa_printerswitch");
+        string own = OwnKeyPath;
         if (File.Exists(own)) yield return own;
         string ssh = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
         foreach (string name in new[] { "id_ed25519", "id_ecdsa", "id_rsa" })
@@ -131,10 +175,10 @@ public static class Ssh
     public static string EnsureOwnKey()
     {
         Directory.CreateDirectory(KeyFolder);
-        string path = Path.Combine(KeyFolder, "id_rsa_printerswitch");
+        string path = OwnKeyPath;
         if (File.Exists(path)) return path;
         using var rsa = RSA.Create(3072);
-        File.WriteAllText(path, rsa.ExportRSAPrivateKeyPem() + "\n");
+        WriteProtectedKey(path, Encoding.ASCII.GetBytes(rsa.ExportRSAPrivateKeyPem() + "\n"));
         File.WriteAllText(path + ".pub", PublicKeyLine(rsa) + "\n");
         return path;
     }
@@ -145,7 +189,7 @@ public static class Ssh
         string pub = privateKeyPath + ".pub";
         if (File.Exists(pub)) return File.ReadAllText(pub).Trim();
         using var rsa = RSA.Create();
-        rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
+        rsa.ImportFromPem(Encoding.ASCII.GetString(ReadKey(privateKeyPath)));
         return PublicKeyLine(rsa);
     }
 

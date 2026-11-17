@@ -162,18 +162,26 @@ public static partial class Usbip
             }
         }
 
-        string hash;
-        await using (var fs = File.OpenRead(file))
-            hash = Convert.ToHexStringLower(await SHA256.HashDataAsync(fs, ct));
-        if (hash != DownloadSha256)
+        // Checked through a handle that denies writing and deleting, and kept open
+        // until the installer has started: %TEMP% is writable by any program running
+        // as the user, and the installer runs elevated.
+        Process p;
+        await using (var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
-            File.Delete(file);
-            throw new InvalidOperationException(L.T("usbip.badhash"));
+            string hash = Convert.ToHexStringLower(await SHA256.HashDataAsync(fs, ct));
+            if (hash != DownloadSha256)
+            {
+                fs.Close();
+                File.Delete(file);
+                throw new InvalidOperationException(L.T("usbip.badhash"));
+            }
+            // The installer elevates itself (UAC prompt).
+            p = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true })!;
         }
-
-        // The installer elevates itself (UAC prompt).
-        using var p = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true })!;
-        await p.WaitForExitAsync(ct);
-        return p.ExitCode;
+        using (p)
+        {
+            await p.WaitForExitAsync(ct);
+            return p.ExitCode;
+        }
     }
 }

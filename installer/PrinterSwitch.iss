@@ -2,7 +2,7 @@
 ; Built by build.ps1:  ISCC.exe /DAppVersion=1.0.0 installer\PrinterSwitch.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.1.1"
+  #define AppVersion "1.1.2"
 #endif
 #ifndef RepoUrl
   #define RepoUrl "https://github.com/"

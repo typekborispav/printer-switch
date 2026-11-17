@@ -9,18 +9,37 @@ using System.Text.Json;
 
 namespace PrinterSwitch.Core;
 
-public sealed record UpdateInfo(Version Version, string PageUrl, string InstallerUrl, string InstallerName, long Size, string Sha256);
+public sealed record UpdateInfo(Version Version, string PageUrl, string InstallerUrl, string InstallerName, long Size,
+                                string Sha256, string SignatureUrl);
+
+/// <summary>
+/// A downloaded installer that passed every check, held open so that nothing can
+/// swap the file between the check and the start (the folder is writable by any
+/// program running as the user, and the installer is started elevated).
+/// </summary>
+public sealed class VerifiedInstaller(string path, FileStream lockHandle) : IDisposable
+{
+    public string Path { get; } = path;
+    public void Dispose() => lockHandle.Dispose();
+}
 
 /// <summary>
 /// Updates from GitHub Releases: asks the API for the latest release, downloads its
-/// installer, checks it against the SHA-256 digest GitHub publishes for every release
-/// asset and runs it silently. Nothing about the user is sent, only a generic User-Agent.
+/// installer and the installer's signature, and runs it silently only when the
+/// signature was made with the author's release key (tools\release-key.ps1). That key
+/// never leaves the author's PC, so taking over the GitHub account or its build is
+/// not enough to push a fake update. Nothing about the user is sent, only a generic
+/// User-Agent.
 /// </summary>
 public static class Updater
 {
     public const string Repo = "typekborispav/printer-switch";
     const string Api = "https://api.github.com/repos/" + Repo + "/releases/latest";
     const string DownloadPrefix = "https://github.com/" + Repo + "/releases/download/";
+
+    /// <summary>Public half of the release key (ECDSA P-256, SubjectPublicKeyInfo).</summary>
+    const string SigningKey =
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAES3m2ZJhLbhWyXvGR6AJFdpBUk5teeAaNYFBWnan03FRVncWfQoh5sjIzzc3X30r9zInLPr6M5fJ2nrmIa9D3fg==";
 
     public static Version Current { get; } = Trim(typeof(Updater).Assembly.GetName().Version ?? new Version(0, 0, 0));
 
@@ -59,32 +78,59 @@ public static class Updater
         if (latest <= Current) return null;
 
         string page = root.TryGetProperty("html_url", out var u) ? u.GetString() ?? "" : "";
-        foreach (var a in root.GetProperty("assets").EnumerateArray())
+        var assets = root.GetProperty("assets").EnumerateArray().ToList();
+        static string UrlOf(JsonElement a) => a.GetProperty("browser_download_url").GetString() ?? "";
+        foreach (var a in assets)
         {
             string name = a.GetProperty("name").GetString() ?? "";
             if (!name.StartsWith("PrinterSwitch-Setup-", StringComparison.OrdinalIgnoreCase) ||
                 !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
-            string url = a.GetProperty("browser_download_url").GetString() ?? "";
             string digest = a.TryGetProperty("digest", out var dg) && dg.ValueKind == JsonValueKind.String ? dg.GetString() ?? "" : "";
             string sha = digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) ? digest[7..].ToLowerInvariant() : "";
-            return new UpdateInfo(latest, page, url, name, a.GetProperty("size").GetInt64(), sha);
+            string sigUrl = assets.Where(s => s.GetProperty("name").GetString() == name + ".sig").Select(UrlOf).FirstOrDefault() ?? "";
+            return new UpdateInfo(latest, page, UrlOf(a), name, a.GetProperty("size").GetInt64(), sha, sigUrl);
         }
-        // A release without an installer yet (CI still building): show the page only.
-        return new UpdateInfo(latest, page, "", "", 0, "");
+        // A release without an installer: show the page only.
+        return new UpdateInfo(latest, page, "", "", 0, "", "");
     }
 
-    /// <summary>True when the update can be installed from the app (installer with a published digest).</summary>
+    /// <summary>True when the update can be installed from the app (installer with a signature).</summary>
     public static bool CanInstall(UpdateInfo u) =>
-        u.InstallerUrl.StartsWith(DownloadPrefix, StringComparison.Ordinal) && u.Sha256.Length == 64 &&
+        u.InstallerUrl.StartsWith(DownloadPrefix, StringComparison.Ordinal) &&
+        u.SignatureUrl.StartsWith(DownloadPrefix, StringComparison.Ordinal) &&
         u.InstallerName.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 
-    /// <summary>Downloads the installer and verifies its SHA-256. Returns the local path.</summary>
-    public static async Task<string> DownloadAsync(UpdateInfo u, IProgress<double> progress, CancellationToken ct = default)
+    /// <summary>The exact text a release is signed over (tools\release-common.ps1, Get-SignedText).</summary>
+    public static string SignedText(Version version, string fileName, string sha256)
+        => $"printer-switch release\nversion={version.ToString(3)}\nfile={fileName}\nsha256={sha256.ToLowerInvariant()}\n";
+
+    public static bool SignatureValid(Version version, string fileName, string sha256, byte[] signature)
+    {
+        using var ecdsa = ECDsa.Create();
+        ecdsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(SigningKey), out _);
+        return ecdsa.VerifyData(System.Text.Encoding.UTF8.GetBytes(SignedText(version, fileName, sha256)), signature,
+                                HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+    }
+
+    /// <summary>
+    /// Downloads the installer and checks its signature (and GitHub's digest, if any).
+    /// The returned object keeps the file locked; dispose it once the installer runs.
+    /// </summary>
+    public static async Task<VerifiedInstaller> DownloadAsync(UpdateInfo u, IProgress<double> progress, CancellationToken ct = default)
     {
         if (!CanInstall(u)) throw new InvalidOperationException("update cannot be verified");
         Directory.CreateDirectory(Folder);
         foreach (var old in Directory.GetFiles(Folder))
             try { File.Delete(old); } catch { }
+
+        byte[] signature;
+        using (var resp = await Http.GetAsync(u.SignatureUrl, ct))
+        {
+            resp.EnsureSuccessStatusCode();
+            string text = await resp.Content.ReadAsStringAsync(ct);
+            try { signature = Convert.FromBase64String(text.Length < 1024 ? text.Trim() : ""); }
+            catch (FormatException) { signature = []; }
+        }
 
         string path = Path.Combine(Folder, u.InstallerName);
         string tmp = path + ".part";
@@ -106,7 +152,7 @@ public static class Updater
                 if (total > 0) progress.Report(Math.Min(1, (double)done / total));
             }
             string actual = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
-            if (actual != u.Sha256)
+            if (u.Sha256.Length > 0 && actual != u.Sha256)
             {
                 dst.Close();
                 File.Delete(tmp);
@@ -114,19 +160,35 @@ public static class Updater
             }
         }
         File.Move(tmp, path, overwrite: true);
-        Log.Write($"update {u.Version} downloaded and verified: {path}");
-        return path;
+
+        // From here on the file is open with no write or delete sharing, and the check
+        // runs on what is read through that very handle: what was checked is what runs.
+        var lockHandle = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            string locked = Convert.ToHexString(await SHA256.HashDataAsync(lockHandle, ct)).ToLowerInvariant();
+            if (!SignatureValid(u.Version, u.InstallerName, locked, signature))
+                throw new InvalidDataException(L.T("upd.badsig"));
+        }
+        catch
+        {
+            lockHandle.Dispose();
+            try { File.Delete(path); } catch { }
+            throw;
+        }
+        Log.Write($"update {u.Version} downloaded, signature verified: {path}");
+        return new VerifiedInstaller(path, lockHandle);
     }
 
     /// <summary>
     /// Starts the installer silently (one UAC prompt). The installer starts the new
     /// version again once done. Returns false when the user declined the prompt.
     /// </summary>
-    public static bool RunInstaller(string path)
+    public static bool RunInstaller(VerifiedInstaller installer)
     {
         try
         {
-            Process.Start(new ProcessStartInfo(path, "/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS")
+            Process.Start(new ProcessStartInfo(installer.Path, "/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS")
             {
                 UseShellExecute = true,
                 Verb = "runas"

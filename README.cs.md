@@ -38,8 +38,9 @@ do sítě. Kabel přitom zůstane u Raspberry Pi – všechno jde po síti.
 - **Vyladění Raspberry Pi** pro stabilní provoz ve dne v noci; každá položka je volitelná a vratná.
 - **Nastavení jako ve Windows 11** – připojení, tiskárna, ovladač, jazyk, spouštění;
   průvodce se spustí při prvním startu a pak je o jedno kliknutí dál.
-- **Sama se aktualizuje z GitHub Releases** – jednou denně zkontroluje novou verzi, ověří SHA-256
-  instalátoru proti otisku, který GitHub zveřejňuje, nainstaluje ji potichu a znovu se spustí. Jde vypnout.
+- **Sama se aktualizuje z GitHub Releases** – jednou denně zkontroluje novou verzi a nainstaluje jen
+  instalátor podepsaný klíčem autora, který nikdy neopouští jeho PC: k podvržení aktualizace
+  nestačí ovládnout účet na GitHubu. Nainstaluje ji potichu a znovu se spustí. Jde vypnout.
 - **Nativní vzhled Windows 11**, světlý i tmavý režim.
 - **Čeština, English, Deutsch, Slovenčina, Polski** – přepnout jde kdykoli.
 
